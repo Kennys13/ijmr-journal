@@ -43,13 +43,21 @@ class AuthService {
     monitorAuthState() {
         onAuthStateChanged(this.auth, (user) => {
             this.user = user;
-            this.updateUI(user);
+            
+            // FIX 1: Ensure DOM is ready before updating UI
+            if (document.readyState === "loading") {
+                document.addEventListener("DOMContentLoaded", () => this.updateUI(user));
+            } else {
+                this.updateUI(user);
+            }
 
             // --- AUTO REDIRECT LOGIC ---
-            // If user is logged in and currently on the login page, redirect to home
+            // Only redirect if user visits login page while ALREADY logged in.
+            // We use a small delay or check to ensure we don't break the login form's own success animation.
             if (user && window.location.pathname.includes('login.html')) {
-                console.log("User logged in, redirecting to home...");
-                window.location.href = 'index.html';
+                // Optional: You can remove this block if you want the login.html success message to control the redirect completely.
+                // console.log("User logged in, redirecting to home...");
+                // window.location.href = 'index.html'; 
             }
         });
     }
@@ -95,10 +103,12 @@ class AuthService {
      * Updates the Navbar based on login state
      */
     updateUI(user) {
-        // Try to find the login link. If href changed to '#', search by text content.
+        const nav = document.querySelector('nav');
+        // Try to find the login link by href or text content
         let loginLink = document.querySelector('nav a[href="login.html"]');
-        if (!loginLink) {
-             const links = document.querySelectorAll('nav a');
+        
+        if (!loginLink && nav) {
+             const links = nav.querySelectorAll('a');
              for (const link of links) {
                  if (link.textContent.includes('Logout') || link.textContent.includes('Login')) {
                      loginLink = link;
@@ -107,8 +117,6 @@ class AuthService {
              }
         }
 
-        const nav = document.querySelector('nav');
-        
         // Cleanup old elements
         const oldProfileBtn = document.getElementById('profile-btn');
         if (oldProfileBtn) oldProfileBtn.remove();
@@ -119,44 +127,54 @@ class AuthService {
             // 1. Change "Login" to "Logout"
             loginLink.textContent = 'Logout';
             loginLink.href = '#';
-            loginLink.style.color = '#ff6b6b'; // Make logout reddish
+            loginLink.style.color = '#ff6b6b'; 
             loginLink.onclick = (e) => {
                 e.preventDefault();
                 if(confirm(`Sign out from ${user.email}?`)) this.logout();
             };
 
             // 2. Create Circular Profile Button
-            // Use UI Avatars to generate initials if no photo is present
+            // Use UI Avatars to generate initials
+            const initials = user.email ? user.email.substring(0, 2).toUpperCase() : 'U';
             const photoURL = user.photoURL || `https://ui-avatars.com/api/?name=${user.email}&background=00d2ff&color=fff&size=128`;
             
             const profileBtn = document.createElement('a');
             profileBtn.id = 'profile-btn';
             profileBtn.href = '#'; 
+            profileBtn.title = `Logged in as ${user.email}`;
             
-            // Circular Style
+            // FIX 2: Better styling to ensure visibility even if image fails
             profileBtn.style.cssText = `
-                display: block;
-                width: 40px;
-                height: 40px;
+                display: flex;
+                align-items: center;
+                justify-content: center;
+                width: 38px;
+                height: 38px;
                 margin-left: 15px;
                 margin-right: 5px;
                 border-radius: 50%;
                 border: 2px solid var(--primary);
+                background-color: rgba(0, 210, 255, 0.1); 
                 background-image: url('${photoURL}');
                 background-size: cover;
                 background-position: center;
+                color: #fff;
+                font-weight: bold;
+                font-size: 14px;
                 cursor: pointer;
                 transition: transform 0.2s ease;
                 box-shadow: 0 0 10px rgba(0, 210, 255, 0.3);
+                text-decoration: none;
             `;
 
+            // Fallback: If image fails to load, text (initials) will show because of center alignment
+            // However, since we use background-image, we can put text inside the span
+            // If the image loads, it covers the text. If not, text shows.
+            profileBtn.innerHTML = `<span style="z-index:-1">${initials}</span>`;
+
             // Hover effects
-            profileBtn.onmouseover = () => {
-                profileBtn.style.transform = 'scale(1.1)';
-            };
-            profileBtn.onmouseout = () => {
-                profileBtn.style.transform = 'scale(1)';
-            };
+            profileBtn.onmouseover = () => { profileBtn.style.transform = 'scale(1.1)'; };
+            profileBtn.onmouseout = () => { profileBtn.style.transform = 'scale(1)'; };
             
             profileBtn.onclick = (e) => {
                 e.preventDefault();
@@ -171,7 +189,7 @@ class AuthService {
             // --- LOGGED OUT STATE ---
             loginLink.textContent = 'Login';
             loginLink.href = 'login.html';
-            loginLink.style.color = ''; // Reset color
+            loginLink.style.color = ''; 
             loginLink.onclick = null;
         }
     }
