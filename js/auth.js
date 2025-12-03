@@ -8,6 +8,8 @@ import { getAnalytics } from "https://www.gstatic.com/firebasejs/10.8.0/firebase
 import { 
     getAuth, 
     signInWithEmailAndPassword, 
+    createUserWithEmailAndPassword, // Added for Registration
+    updateProfile,                  // Added for Profile Updates
     signOut, 
     onAuthStateChanged 
 } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-auth.js";
@@ -54,94 +56,60 @@ class AuthService {
     }
 
     /**
-     * Login Function with Detailed Error Mapping
+     * Login Function
      */
     async login(email, password, role) {
         try {
-            // 1. Authenticate with Firebase
             const userCredential = await signInWithEmailAndPassword(this.auth, email, password);
-            
-            // 2. Store the role locally for UI purposes
-            localStorage.setItem('ijmr_user_role', role);
-
+            localStorage.setItem('ijmr_user_role', role); // Store role locally
             return userCredential.user;
         } catch (error) {
             console.error("Login Error:", error.code);
-            let message = "Login failed. Please check your credentials.";
-            
-            // Specific Error Messages for User Feedback
-            if (error.code === 'auth/wrong-password') {
-                message = "Incorrect password. Please try again.";
-            } else if (error.code === 'auth/user-not-found') {
-                message = "No account found with this email.";
-            } else if (error.code === 'auth/invalid-credential') {
-                message = "Invalid email or password.";
-            } else if (error.code === 'auth/too-many-requests') {
-                message = "Too many attempts. Please wait a moment.";
-            } else if (error.code === 'auth/network-request-failed') {
-                message = "Network error. Check your internet connection.";
-            }
-            
-            throw new Error(message);
+            throw this.handleError(error);
         }
     }
 
     /**
-     * Handles the full Login UI flow: Button state -> Auth -> Redirect
-     * Call this from your login form submission.
-     * @param {string} emailId - HTML ID of email input
-     * @param {string} passwordId - HTML ID of password input
-     * @param {string} roleId - HTML ID of role select
-     * @param {string} btnId - HTML ID of submit button
-     * @param {string} msgId - HTML ID of message container
+     * Register Function (Create New Account)
      */
-    async handleLoginFlow(emailId, passwordId, roleId, btnId, msgId) {
-        const email = document.getElementById(emailId).value;
-        const password = document.getElementById(passwordId).value;
-        const role = document.getElementById(roleId).value;
-        const btn = document.getElementById(btnId);
-        const msgBox = document.getElementById(msgId);
-
-        // 1. Set Loading State
-        if(msgBox) msgBox.style.display = 'none';
-        const originalBtnText = btn.innerHTML; // Save text to restore on error
-        btn.innerHTML = '<i class="fas fa-circle-notch fa-spin"></i> Authenticating...';
-        btn.style.opacity = '0.7';
-        btn.disabled = true;
-
+    async register(name, email, password, role) {
         try {
-            // 2. Attempt Login
-            await this.login(email, password, role);
+            // 1. Create User in Firebase
+            const userCredential = await createUserWithEmailAndPassword(this.auth, email, password);
+            const user = userCredential.user;
 
-            // 3. Success State
-            btn.innerHTML = '<i class="fas fa-check-circle"></i> Login Successful';
-            btn.style.background = '#10b981'; // Green
-            btn.style.borderColor = '#10b981';
-            
-            if(msgBox) {
-                msgBox.style.display = 'block';
-                msgBox.style.color = '#10b981';
-                msgBox.innerHTML = '<strong>Welcome!</strong> Redirecting to home...';
-            }
+            // 2. Update Profile with Name
+            await updateProfile(user, {
+                displayName: name
+                // photoURL: "default_url" // Optional
+            });
 
-            // 4. Redirect after short delay
-            setTimeout(() => {
-                window.location.href = 'index.html';
-            }, 1000);
+            // 3. Store Role
+            localStorage.setItem('ijmr_user_role', role);
 
+            return user;
         } catch (error) {
-            // 5. Error State
-            if(msgBox) {
-                msgBox.style.display = 'block';
-                msgBox.style.color = '#ff4444'; // Red
-                msgBox.innerHTML = `<i class="fas fa-exclamation-circle"></i> ${error.message}`;
-            }
-            
-            // Reset Button
-            btn.innerHTML = originalBtnText; // Restore original text
-            btn.style.opacity = '1';
-            btn.style.background = '';
-            btn.disabled = false;
+            console.error("Registration Error:", error.code);
+            throw this.handleError(error);
+        }
+    }
+
+    /**
+     * Update Profile Data
+     */
+    async updateUserProfile(name, photoURL) {
+        if (!this.auth.currentUser) throw new Error("No user logged in.");
+        
+        try {
+            await updateProfile(this.auth.currentUser, {
+                displayName: name,
+                photoURL: photoURL
+            });
+            // Force UI update
+            this.updateUI(this.auth.currentUser);
+        } catch (error) {
+            console.error("Update Error:", error);
+            throw new Error("Failed to update profile.");
         }
     }
 
@@ -159,6 +127,19 @@ class AuthService {
     }
 
     /**
+     * Helper to format error messages
+     */
+    handleError(error) {
+        let message = "Operation failed.";
+        if (error.code === 'auth/wrong-password') message = "Incorrect password.";
+        else if (error.code === 'auth/user-not-found') message = "No account found with this email.";
+        else if (error.code === 'auth/email-already-in-use') message = "This email is already registered.";
+        else if (error.code === 'auth/weak-password') message = "Password should be at least 6 characters.";
+        else if (error.code === 'auth/invalid-email') message = "Invalid email format.";
+        return new Error(message);
+    }
+
+    /**
      * Updates the Navbar based on login state
      */
     updateUI(user) {
@@ -166,7 +147,6 @@ class AuthService {
         // Find login link
         let loginLink = document.querySelector('nav a[href="login.html"]');
         
-        // Fallback search for login link
         if (!loginLink && nav) {
              const links = nav.querySelectorAll('a');
              for (const link of links) {
@@ -193,14 +173,15 @@ class AuthService {
                 if(confirm(`Sign out from ${user.email}?`)) this.logout();
             };
 
-            // 2. Create Profile Button
-            const initials = user.email ? user.email.substring(0, 2).toUpperCase() : 'U';
-            // Use UI Avatars service as fallback
-            const photoURL = user.photoURL || `https://ui-avatars.com/api/?name=${user.email}&background=00d2ff&color=fff&size=128`;
+            // 2. Create Circular Profile Button
+            const initials = (user.displayName || user.email || 'U').substring(0, 2).toUpperCase();
+            // Use UI Avatars service if no photoURL is set
+            const photoURL = user.photoURL || `https://ui-avatars.com/api/?name=${user.displayName || user.email}&background=00d2ff&color=fff&size=128`;
             
             const profileBtn = document.createElement('a');
             profileBtn.id = 'profile-btn';
-            profileBtn.href = '#'; 
+            // LINK TO THE NEW PROFILE PAGE
+            profileBtn.href = 'profile.html'; 
             
             profileBtn.style.cssText = `
                 display: flex;
@@ -228,11 +209,9 @@ class AuthService {
             // Inner text (hidden if image loads)
             profileBtn.innerHTML = `<span style="opacity:0">${initials}</span>`;
 
-            profileBtn.onclick = (e) => {
-                e.preventDefault();
-                const role = localStorage.getItem('ijmr_user_role') || 'User';
-                alert(`Profile: ${user.email}\nRole: ${role}`);
-            };
+            // Hover effects
+            profileBtn.onmouseover = () => { profileBtn.style.transform = 'scale(1.1)'; };
+            profileBtn.onmouseout = () => { profileBtn.style.transform = 'scale(1)'; };
 
             if(nav) nav.insertBefore(profileBtn, loginLink);
 
@@ -249,5 +228,5 @@ class AuthService {
 // Initialize
 const Auth = new AuthService();
 
-// EXPORT IT (Crucial for the new login.html)
+// Export
 export default Auth;
