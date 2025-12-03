@@ -44,20 +44,11 @@ class AuthService {
         onAuthStateChanged(this.auth, (user) => {
             this.user = user;
             
-            // FIX 1: Ensure DOM is ready before updating UI
+            // Wait for DOM to be ready before updating UI
             if (document.readyState === "loading") {
                 document.addEventListener("DOMContentLoaded", () => this.updateUI(user));
             } else {
                 this.updateUI(user);
-            }
-
-            // --- AUTO REDIRECT LOGIC ---
-            // Only redirect if user visits login page while ALREADY logged in.
-            // We use a small delay or check to ensure we don't break the login form's own success animation.
-            if (user && window.location.pathname.includes('login.html')) {
-                // Optional: You can remove this block if you want the login.html success message to control the redirect completely.
-                // console.log("User logged in, redirecting to home...");
-                // window.location.href = 'index.html'; 
             }
         });
     }
@@ -77,11 +68,15 @@ class AuthService {
         } catch (error) {
             console.error("Login Error:", error.code);
             let message = "Login failed. Please check your credentials.";
+            
             if (error.code === 'auth/invalid-credential' || error.code === 'auth/user-not-found') {
                 message = "Invalid email or password.";
             } else if (error.code === 'auth/too-many-requests') {
                 message = "Too many attempts. Please wait a moment.";
+            } else if (error.code === 'auth/network-request-failed') {
+                message = "Network error. Check your internet connection.";
             }
+            
             throw new Error(message);
         }
     }
@@ -104,9 +99,10 @@ class AuthService {
      */
     updateUI(user) {
         const nav = document.querySelector('nav');
-        // Try to find the login link by href or text content
+        // Find login link
         let loginLink = document.querySelector('nav a[href="login.html"]');
         
+        // Fallback search for login link
         if (!loginLink && nav) {
              const links = nav.querySelectorAll('a');
              for (const link of links) {
@@ -133,17 +129,15 @@ class AuthService {
                 if(confirm(`Sign out from ${user.email}?`)) this.logout();
             };
 
-            // 2. Create Circular Profile Button
-            // Use UI Avatars to generate initials
+            // 2. Create Profile Button
             const initials = user.email ? user.email.substring(0, 2).toUpperCase() : 'U';
+            // Use UI Avatars service as fallback
             const photoURL = user.photoURL || `https://ui-avatars.com/api/?name=${user.email}&background=00d2ff&color=fff&size=128`;
             
             const profileBtn = document.createElement('a');
             profileBtn.id = 'profile-btn';
             profileBtn.href = '#'; 
-            profileBtn.title = `Logged in as ${user.email}`;
             
-            // FIX 2: Better styling to ensure visibility even if image fails
             profileBtn.style.cssText = `
                 display: flex;
                 align-items: center;
@@ -166,23 +160,16 @@ class AuthService {
                 box-shadow: 0 0 10px rgba(0, 210, 255, 0.3);
                 text-decoration: none;
             `;
-
-            // Fallback: If image fails to load, text (initials) will show because of center alignment
-            // However, since we use background-image, we can put text inside the span
-            // If the image loads, it covers the text. If not, text shows.
-            profileBtn.innerHTML = `<span style="z-index:-1">${initials}</span>`;
-
-            // Hover effects
-            profileBtn.onmouseover = () => { profileBtn.style.transform = 'scale(1.1)'; };
-            profileBtn.onmouseout = () => { profileBtn.style.transform = 'scale(1)'; };
             
+            // Inner text (hidden if image loads)
+            profileBtn.innerHTML = `<span style="opacity:0">${initials}</span>`;
+
             profileBtn.onclick = (e) => {
                 e.preventDefault();
                 const role = localStorage.getItem('ijmr_user_role') || 'User';
                 alert(`Profile: ${user.email}\nRole: ${role}`);
             };
 
-            // Insert Profile Button BEFORE the Logout link
             if(nav) nav.insertBefore(profileBtn, loginLink);
 
         } else if (loginLink) {
@@ -195,6 +182,8 @@ class AuthService {
     }
 }
 
-// Initialize and attach to window
+// Initialize
 const Auth = new AuthService();
-window.Auth = Auth;
+
+// EXPORT IT (Crucial for the new login.html)
+export default Auth;
