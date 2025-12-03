@@ -32,8 +32,7 @@
             </p>
         </div>
 
-        <form onsubmit="event.preventDefault(); handleLogin();">
-            
+        <form>
             <label>Login As</label>
             <div style="position: relative;">
                 <i class="fas fa-briefcase" style="position: absolute; top: 14px; left: 15px; color: var(--text-muted);"></i>
@@ -64,7 +63,8 @@
                 Login <i class="fas fa-arrow-right" style="margin-left: 8px;"></i>
             </button>
             
-            <p id="loginError" style="color: #ff4444; text-align: center; margin-top: 15px; font-size: 0.9rem; display: none;"></p>
+            <!-- Success/Error Message Container -->
+            <p id="loginMessage" style="text-align: center; margin-top: 15px; font-size: 0.9rem; display: none;"></p>
         </form>
 
         <p class="text-center" style="margin-top: 20px; font-size: 0.9rem; color: var(--text-muted);">
@@ -77,60 +77,14 @@
     <p>&copy; <span id="year"></span> IJMR Journal. All rights reserved.</p>
 </footer>
 
+<!-- 1. Load Main App Logic -->
 <script src="js/app.js"></script>
 
-<!-- IMPORTANT: type="module" allows the browser to download Firebase from CDN -->
+<!-- 2. Load Auth Service (Must be module for Firebase imports) -->
 <script type="module" src="js/auth.js"></script>
 
-<script>
-    // Validation Logic
-    const emailInput = document.getElementById('emailInput');
-    const emailError = document.getElementById('emailError');
-    const emailPattern = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+<!-- 3. Load Login Specific Logic (Defer ensures it waits for HTML parsing) -->
+<script src="js/login.js" defer></script>
 
-    emailInput.addEventListener('input', function() {
-        if (this.value.length > 0 && !emailPattern.test(this.value)) {
-            this.style.borderColor = '#ff4444';
-            emailError.style.display = 'block';
-        } else {
-            this.style.borderColor = '';
-            emailError.style.display = 'none';
-        }
-    });
-
-    // Login Handler
-    async function handleLogin() {
-        const email = document.getElementById('emailInput').value;
-        const password = document.getElementById('passwordInput').value;
-        const role = document.getElementById('roleInput').value;
-        const btn = document.getElementById('loginBtn');
-        const errorMsg = document.getElementById('loginError');
-
-        errorMsg.style.display = 'none';
-        btn.innerHTML = '<i class="fas fa-circle-notch fa-spin"></i> Authenticating...';
-        btn.style.opacity = '0.7';
-        btn.disabled = true;
-
-        try {
-            // We use window.Auth because we attached it to the window object in auth.js
-            await window.Auth.login(email, password, role);
-            
-            btn.innerHTML = '<i class="fas fa-check"></i> Success!';
-            btn.style.background = '#10b981';
-            
-            setTimeout(() => {
-                window.location.href = 'index.html';
-            }, 1000);
-
-        } catch (err) {
-            errorMsg.innerText = err.message;
-            errorMsg.style.display = 'block';
-            btn.innerHTML = 'Login <i class="fas fa-arrow-right" style="margin-left: 8px;"></i>';
-            btn.style.opacity = '1';
-            btn.style.background = '';
-            btn.disabled = false;
-        }
-    }
-</script>
 </body>
 </html>
