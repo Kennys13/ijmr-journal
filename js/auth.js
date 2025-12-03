@@ -44,6 +44,13 @@ class AuthService {
         onAuthStateChanged(this.auth, (user) => {
             this.user = user;
             this.updateUI(user);
+
+            // --- AUTO REDIRECT LOGIC ---
+            // If user is logged in and currently on the login page, redirect to home
+            if (user && window.location.pathname.includes('login.html')) {
+                console.log("User logged in, redirecting to home...");
+                window.location.href = 'index.html';
+            }
         });
     }
 
@@ -88,7 +95,18 @@ class AuthService {
      * Updates the Navbar based on login state
      */
     updateUI(user) {
-        const loginLink = document.querySelector('nav a[href="login.html"]');
+        // Try to find the login link. If href changed to '#', search by text content.
+        let loginLink = document.querySelector('nav a[href="login.html"]');
+        if (!loginLink) {
+             const links = document.querySelectorAll('nav a');
+             for (const link of links) {
+                 if (link.textContent.includes('Logout') || link.textContent.includes('Login')) {
+                     loginLink = link;
+                     break;
+                 }
+             }
+        }
+
         const nav = document.querySelector('nav');
         
         // Cleanup old elements
@@ -107,53 +125,47 @@ class AuthService {
                 if(confirm(`Sign out from ${user.email}?`)) this.logout();
             };
 
-            // 2. Create Profile Button
-            const role = localStorage.getItem('ijmr_user_role') || 'User';
+            // 2. Create Circular Profile Button
+            // Use UI Avatars to generate initials if no photo is present
+            const photoURL = user.photoURL || `https://ui-avatars.com/api/?name=${user.email}&background=00d2ff&color=fff&size=128`;
+            
             const profileBtn = document.createElement('a');
             profileBtn.id = 'profile-btn';
-            profileBtn.href = '#profile'; // Placeholder link
-            profileBtn.className = 'profile-btn';
+            profileBtn.href = '#'; 
             
-            // Inline Styles for Glassmorphism Button
+            // Circular Style
             profileBtn.style.cssText = `
-                display: inline-flex;
-                align-items: center;
-                gap: 8px;
-                margin-left: 10px;
-                margin-right: 10px;
-                padding: 8px 16px;
-                background: rgba(0, 210, 255, 0.1);
-                border: 1px solid var(--primary);
-                border-radius: 30px;
-                color: #fff;
-                font-size: 0.9rem;
-                text-decoration: none;
-                transition: all 0.3s ease;
+                display: block;
+                width: 40px;
+                height: 40px;
+                margin-left: 15px;
+                margin-right: 5px;
+                border-radius: 50%;
+                border: 2px solid var(--primary);
+                background-image: url('${photoURL}');
+                background-size: cover;
+                background-position: center;
                 cursor: pointer;
-            `;
-
-            profileBtn.innerHTML = `
-                <i class="fas fa-user-circle" style="font-size: 1.1em;"></i>
-                <span>${role}</span>
+                transition: transform 0.2s ease;
+                box-shadow: 0 0 10px rgba(0, 210, 255, 0.3);
             `;
 
             // Hover effects
             profileBtn.onmouseover = () => {
-                profileBtn.style.background = 'var(--primary)';
-                profileBtn.style.color = '#000';
+                profileBtn.style.transform = 'scale(1.1)';
             };
             profileBtn.onmouseout = () => {
-                profileBtn.style.background = 'rgba(0, 210, 255, 0.1)';
-                profileBtn.style.color = '#fff';
+                profileBtn.style.transform = 'scale(1)';
             };
             
             profileBtn.onclick = (e) => {
                 e.preventDefault();
-                alert("Profile Dashboard Coming Soon!");
+                const role = localStorage.getItem('ijmr_user_role') || 'User';
+                alert(`Profile: ${user.email}\nRole: ${role}`);
             };
 
             // Insert Profile Button BEFORE the Logout link
-            nav.insertBefore(profileBtn, loginLink);
+            if(nav) nav.insertBefore(profileBtn, loginLink);
 
         } else if (loginLink) {
             // --- LOGGED OUT STATE ---
