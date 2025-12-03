@@ -1,10 +1,10 @@
 /**
- * IJMR FIREBASE AUTHENTICATION (CDN MODULES)
- * Optimized for Vercel / Static Hosting
+ * IJMR FIREBASE AUTHENTICATION
+ * Configuration for ijmr-journal
  */
 
-// 1. Import Firebase functions from Google's CDN
 import { initializeApp } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-app.js";
+import { getAnalytics } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-analytics.js";
 import { 
     getAuth, 
     signInWithEmailAndPassword, 
@@ -12,59 +12,71 @@ import {
     onAuthStateChanged 
 } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-auth.js";
 
-// 2. Your Web App's Firebase Configuration
-const firebaseConfig = {
-    apiKey: "AIzaSyC1NY2JKe69QcXSW68cD4la9wtW_j0iWk0",
-    authDomain: "ijmr-journal.firebaseapp.com",
-    projectId: "ijmr-journal",
-    storageBucket: "ijmr-journal.firebasestorage.app",
-    messagingSenderId: "695247068404",
-    appId: "1:695247068404:web:b62030d0e9b8c0763c52a1",
-    measurementId: "G-LLGEZ2EFPM"
-};
-
-// 3. Initialize Firebase
-const app = initializeApp(firebaseConfig);
-const auth = getAuth(app);
-
-// 4. Auth Service Class
 class AuthService {
     constructor() {
+        // --- YOUR CONFIGURATION ---
+        this.firebaseConfig = {
+            apiKey: "AIzaSyC1NY2JKe69QcXSW68cD4la9wtW_j0iWk0",
+            authDomain: "ijmr-journal.firebaseapp.com",
+            projectId: "ijmr-journal",
+            storageBucket: "ijmr-journal.firebasestorage.app",
+            messagingSenderId: "695247068404",
+            appId: "1:695247068404:web:b62030d0e9b8c0763c52a1",
+            measurementId: "G-LLGEZ2EFPM"
+        };
+        // --------------------------
+
+        // Initialize Firebase
+        this.app = initializeApp(this.firebaseConfig);
+        this.analytics = getAnalytics(this.app);
+        this.auth = getAuth(this.app);
+        
         this.user = null;
+
+        // Start listening for auth changes immediately
         this.monitorAuthState();
     }
 
-    // Monitor Login Status
+    /**
+     * Real-time listener: Runs whenever user logs in or out
+     */
     monitorAuthState() {
-        onAuthStateChanged(auth, (user) => {
+        onAuthStateChanged(this.auth, (user) => {
             this.user = user;
             this.updateUI(user);
-            if (user) {
-                console.log("Secure Connection Established:", user.email);
-            }
         });
     }
 
-    // Login Method
+    /**
+     * Login Function
+     */
     async login(email, password, role) {
         try {
-            const userCredential = await signInWithEmailAndPassword(auth, email, password);
-            // Store role locally for UI display (Firebase doesn't store 'role' by default on the user object)
+            // 1. Authenticate with Firebase
+            const userCredential = await signInWithEmailAndPassword(this.auth, email, password);
+            
+            // 2. Store the role locally for UI purposes
             localStorage.setItem('ijmr_user_role', role);
+
             return userCredential.user;
         } catch (error) {
-            console.error("Auth Error:", error.code);
-            let msg = "Login failed.";
-            if (error.code === 'auth/invalid-credential') msg = "Invalid email or password.";
-            if (error.code === 'auth/too-many-requests') msg = "Access temporarily blocked due to many failed attempts.";
-            throw new Error(msg);
+            console.error("Login Error:", error.code);
+            let message = "Login failed. Please check your credentials.";
+            if (error.code === 'auth/invalid-credential' || error.code === 'auth/user-not-found') {
+                message = "Invalid email or password.";
+            } else if (error.code === 'auth/too-many-requests') {
+                message = "Too many attempts. Please wait a moment.";
+            }
+            throw new Error(message);
         }
     }
 
-    // Logout Method
+    /**
+     * Logout Function
+     */
     async logout() {
         try {
-            await signOut(auth);
+            await signOut(this.auth);
             localStorage.removeItem('ijmr_user_role');
             window.location.href = 'login.html';
         } catch (error) {
@@ -72,44 +84,87 @@ class AuthService {
         }
     }
 
-    // Update Navbar UI
+    /**
+     * Updates the Navbar based on login state
+     */
     updateUI(user) {
         const loginLink = document.querySelector('nav a[href="login.html"]');
         const nav = document.querySelector('nav');
-        const oldBadge = document.getElementById('user-badge');
         
-        if (oldBadge) oldBadge.remove();
+        // Cleanup old elements
+        const oldProfileBtn = document.getElementById('profile-btn');
+        if (oldProfileBtn) oldProfileBtn.remove();
 
         if (user && loginLink) {
-            // LOGGED IN
+            // --- LOGGED IN STATE ---
+            
+            // 1. Change "Login" to "Logout"
             loginLink.textContent = 'Logout';
             loginLink.href = '#';
+            loginLink.style.color = '#ff6b6b'; // Make logout reddish
             loginLink.onclick = (e) => {
                 e.preventDefault();
-                if(confirm('Sign out?')) this.logout();
+                if(confirm(`Sign out from ${user.email}?`)) this.logout();
             };
 
-            // Add Role Badge
+            // 2. Create Profile Button
             const role = localStorage.getItem('ijmr_user_role') || 'User';
-            const badge = document.createElement('span');
-            badge.id = 'user-badge';
-            badge.innerHTML = `<i class="fas fa-user-circle"></i> ${role}`;
-            badge.style.cssText = `
-                color: var(--primary); font-size: 0.8rem; border: 1px solid var(--primary); 
-                padding: 2px 10px; border-radius: 12px; margin-left: 10px; 
-                display: inline-flex; align-items: center; gap: 5px;
+            const profileBtn = document.createElement('a');
+            profileBtn.id = 'profile-btn';
+            profileBtn.href = '#profile'; // Placeholder link
+            profileBtn.className = 'profile-btn';
+            
+            // Inline Styles for Glassmorphism Button
+            profileBtn.style.cssText = `
+                display: inline-flex;
+                align-items: center;
+                gap: 8px;
+                margin-left: 10px;
+                margin-right: 10px;
+                padding: 8px 16px;
+                background: rgba(0, 210, 255, 0.1);
+                border: 1px solid var(--primary);
+                border-radius: 30px;
+                color: #fff;
+                font-size: 0.9rem;
+                text-decoration: none;
+                transition: all 0.3s ease;
+                cursor: pointer;
             `;
-            nav.insertBefore(badge, loginLink);
+
+            profileBtn.innerHTML = `
+                <i class="fas fa-user-circle" style="font-size: 1.1em;"></i>
+                <span>${role}</span>
+            `;
+
+            // Hover effects
+            profileBtn.onmouseover = () => {
+                profileBtn.style.background = 'var(--primary)';
+                profileBtn.style.color = '#000';
+            };
+            profileBtn.onmouseout = () => {
+                profileBtn.style.background = 'rgba(0, 210, 255, 0.1)';
+                profileBtn.style.color = '#fff';
+            };
+            
+            profileBtn.onclick = (e) => {
+                e.preventDefault();
+                alert("Profile Dashboard Coming Soon!");
+            };
+
+            // Insert Profile Button BEFORE the Logout link
+            nav.insertBefore(profileBtn, loginLink);
 
         } else if (loginLink) {
-            // LOGGED OUT
+            // --- LOGGED OUT STATE ---
             loginLink.textContent = 'Login';
             loginLink.href = 'login.html';
+            loginLink.style.color = ''; // Reset color
             loginLink.onclick = null;
         }
     }
 }
 
-// 5. Initialize and Expose to Window
+// Initialize and attach to window
 const Auth = new AuthService();
-window.Auth = Auth; // Essential: allows HTML inline scripts to use 'window.Auth.login()'
+window.Auth = Auth;
