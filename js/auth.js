@@ -54,7 +54,7 @@ class AuthService {
     }
 
     /**
-     * Login Function
+     * Login Function with Detailed Error Mapping
      */
     async login(email, password, role) {
         try {
@@ -69,7 +69,12 @@ class AuthService {
             console.error("Login Error:", error.code);
             let message = "Login failed. Please check your credentials.";
             
-            if (error.code === 'auth/invalid-credential' || error.code === 'auth/user-not-found') {
+            // Specific Error Messages for User Feedback
+            if (error.code === 'auth/wrong-password') {
+                message = "Incorrect password. Please try again.";
+            } else if (error.code === 'auth/user-not-found') {
+                message = "No account found with this email.";
+            } else if (error.code === 'auth/invalid-credential') {
                 message = "Invalid email or password.";
             } else if (error.code === 'auth/too-many-requests') {
                 message = "Too many attempts. Please wait a moment.";
@@ -78,6 +83,65 @@ class AuthService {
             }
             
             throw new Error(message);
+        }
+    }
+
+    /**
+     * Handles the full Login UI flow: Button state -> Auth -> Redirect
+     * Call this from your login form submission.
+     * @param {string} emailId - HTML ID of email input
+     * @param {string} passwordId - HTML ID of password input
+     * @param {string} roleId - HTML ID of role select
+     * @param {string} btnId - HTML ID of submit button
+     * @param {string} msgId - HTML ID of message container
+     */
+    async handleLoginFlow(emailId, passwordId, roleId, btnId, msgId) {
+        const email = document.getElementById(emailId).value;
+        const password = document.getElementById(passwordId).value;
+        const role = document.getElementById(roleId).value;
+        const btn = document.getElementById(btnId);
+        const msgBox = document.getElementById(msgId);
+
+        // 1. Set Loading State
+        if(msgBox) msgBox.style.display = 'none';
+        const originalBtnText = btn.innerHTML; // Save text to restore on error
+        btn.innerHTML = '<i class="fas fa-circle-notch fa-spin"></i> Authenticating...';
+        btn.style.opacity = '0.7';
+        btn.disabled = true;
+
+        try {
+            // 2. Attempt Login
+            await this.login(email, password, role);
+
+            // 3. Success State
+            btn.innerHTML = '<i class="fas fa-check-circle"></i> Login Successful';
+            btn.style.background = '#10b981'; // Green
+            btn.style.borderColor = '#10b981';
+            
+            if(msgBox) {
+                msgBox.style.display = 'block';
+                msgBox.style.color = '#10b981';
+                msgBox.innerHTML = '<strong>Welcome!</strong> Redirecting to home...';
+            }
+
+            // 4. Redirect after short delay
+            setTimeout(() => {
+                window.location.href = 'index.html';
+            }, 1000);
+
+        } catch (error) {
+            // 5. Error State
+            if(msgBox) {
+                msgBox.style.display = 'block';
+                msgBox.style.color = '#ff4444'; // Red
+                msgBox.innerHTML = `<i class="fas fa-exclamation-circle"></i> ${error.message}`;
+            }
+            
+            // Reset Button
+            btn.innerHTML = originalBtnText; // Restore original text
+            btn.style.opacity = '1';
+            btn.style.background = '';
+            btn.disabled = false;
         }
     }
 
