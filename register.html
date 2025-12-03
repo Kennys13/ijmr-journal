@@ -1,0 +1,102 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Create Account | IJMR</title>
+    <link rel="stylesheet" href="css/style.css">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+</head>
+<body>
+
+<header>
+    <div class="brand"><h1>IJMR</h1><p>Join Community</p></div>
+</header>
+
+<nav>
+    <a href="index.html">Home</a>
+    <a href="login.html">Login</a>
+</nav>
+
+<div class="section reveal" style="min-height: 70vh; display: flex; align-items: center; justify-content: center;">
+    <div class="glass-card" style="width: 100%; max-width: 450px; padding: 2.5rem;">
+        
+        <div class="text-center" style="margin-bottom: 25px;">
+            <h2 style="color: var(--text); margin: 0;">Create Account</h2>
+            <p style="color: var(--text-muted); font-size: 0.9rem;">Join IJMR to submit and review papers.</p>
+        </div>
+
+        <form id="registerForm">
+            <label>Full Name <span style="color: #ff4444;">*</span></label>
+            <input id="regName" type="text" placeholder="John Doe" required>
+
+            <label>Email Address <span style="color: #ff4444;">*</span></label>
+            <input id="regEmail" type="email" placeholder="name@example.com" required>
+
+            <label>Password <span style="color: #ff4444;">*</span></label>
+            <input id="regPass" type="password" placeholder="Min 6 characters" required>
+
+            <label>I am a...</label>
+            <select id="regRole">
+                <option value="Author">Author / Researcher</option>
+                <option value="Reviewer">Reviewer</option>
+                <option value="Reader">Reader</option>
+            </select>
+
+            <button type="submit" id="regBtn" class="btn btn-primary" style="width: 100%; margin-top: 20px;">
+                Create Account <i class="fas fa-user-plus" style="margin-left: 8px;"></i>
+            </button>
+            
+            <p id="regMsg" style="text-align: center; margin-top: 15px; font-size: 0.9rem; display: none;"></p>
+        </form>
+
+        <p class="text-center" style="margin-top: 20px; font-size: 0.9rem; color: var(--text-muted);">
+            Already have an account? <a href="login.html" style="color: var(--primary); font-weight: 600;">Login here</a>
+        </p>
+    </div>
+</div>
+
+<script src="js/app.js"></script>
+<script type="module">
+    import Auth from './js/auth.js';
+
+    const form = document.getElementById('registerForm');
+    
+    form.addEventListener('submit', async (e) => {
+        e.preventDefault();
+        
+        const name = document.getElementById('regName').value;
+        const email = document.getElementById('regEmail').value;
+        const pass = document.getElementById('regPass').value;
+        const role = document.getElementById('regRole').value;
+        const btn = document.getElementById('regBtn');
+        const msg = document.getElementById('regMsg');
+
+        msg.style.display = 'none';
+        btn.innerHTML = '<i class="fas fa-circle-notch fa-spin"></i> Creating...';
+        btn.disabled = true;
+
+        try {
+            await Auth.register(name, email, pass, role);
+            
+            // Success
+            btn.innerHTML = '<i class="fas fa-check"></i> Account Created!';
+            btn.style.background = '#10b981';
+            
+            msg.style.display = 'block';
+            msg.style.color = '#10b981';
+            msg.innerText = "Redirecting to your dashboard...";
+            
+            setTimeout(() => window.location.href = 'index.html', 1500);
+
+        } catch (error) {
+            msg.style.display = 'block';
+            msg.style.color = '#ff4444';
+            msg.innerText = error.message;
+            btn.innerHTML = 'Create Account <i class="fas fa-user-plus"></i>';
+            btn.disabled = false;
+        }
+    });
+</script>
+</body>
+</html>
