@@ -1,140 +1,151 @@
-<!DOCTYPE html>
-<html lang="en">
-<head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Login | IJMR</title>
-    <link rel="stylesheet" href="css/style.css">
-    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
-</head>
-<body>
+/**
+ * IJMR FIREBASE AUTHENTICATION
+ * Connects to Firebase Auth for secure, persistent login.
+ */
 
-<!-- 1. NAVIGATION -->
-<header>
-    <div class="brand"><h1>IJMR</h1><p>Secure Portal</p></div>
-</header>
+// Import Firebase SDKs from CDN (No installation needed)
+import { initializeApp } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-app.js";
+import { 
+    getAuth, 
+    signInWithEmailAndPassword, 
+    signOut, 
+    onAuthStateChanged 
+} from "https://www.gstatic.com/firebasejs/10.8.0/firebase-auth.js";
 
-<nav>
-    <a href="index.html">Home</a>
-    <a href="submit.html">Submit</a>
-    <a href="login.html" class="active">Login</a>
-</nav>
+class AuthService {
+    constructor() {
+        // --- 1. PASTE YOUR FIREBASE CONFIG HERE ---
+        // (Get this from Project Settings > General > Your Apps in Firebase Console)
+        this.firebaseConfig = {
+            apiKey: "AIzaSy...", 
+            authDomain: "your-project-id.firebaseapp.com",
+            projectId: "your-project-id",
+            storageBucket: "your-project-id.appspot.com",
+            messagingSenderId: "123456...",
+            appId: "1:123456..."
+        };
+        // ------------------------------------------
 
-<!-- 2. LOGIN SECTION -->
-<div class="section reveal" style="min-height: 60vh; display: flex; align-items: center; justify-content: center;">
-    <div class="glass-card" style="width: 100%; max-width: 400px; padding: 2.5rem;">
-        
-        <div class="text-center" style="margin-bottom: 30px;">
-            <div style="width: 60px; height: 60px; background: rgba(0, 210, 255, 0.1); border-radius: 50%; display: flex; align-items: center; justify-content: center; margin: 0 auto 15px; border: 1px solid var(--primary);">
-                <i class="fas fa-user-lock fa-2x" style="color: var(--primary);"></i>
-            </div>
-            <h2 style="color: var(--text); margin: 0;">Welcome Back</h2>
-            <p style="color: var(--text-muted); font-size: 0.9rem;">
-                Sign in to continue to your dashboard. Fields marked with <span style="color: #ff4444;">*</span> are mandatory.
-            </p>
-        </div>
+        // Initialize Firebase
+        this.app = initializeApp(this.firebaseConfig);
+        this.auth = getAuth(this.app);
+        this.user = null;
 
-        <form onsubmit="event.preventDefault(); login();">
-            
-            <!-- Role Selector -->
-            <label>Login As</label>
-            <div style="position: relative;">
-                <i class="fas fa-briefcase" style="position: absolute; top: 14px; left: 15px; color: var(--text-muted);"></i>
-                <select style="padding-left: 45px;">
-                    <option>Author / Researcher</option>
-                    <option>Reviewer</option>
-                    <option>Journal Editor</option>
-                    <option>Administrator</option>
-                </select>
-            </div>
-
-            <!-- Email Input -->
-            <label>Email Address <span style="color: #ff4444;">*</span></label>
-            <div style="position: relative;">
-                <i class="fas fa-envelope" style="position: absolute; top: 14px; left: 15px; color: var(--text-muted);"></i>
-                <input id="emailInput" type="email" placeholder="name@example.com" required style="padding-left: 45px;">
-                <!-- Error Message Container -->
-                <p id="emailError" style="color: #ff4444; font-size: 0.8rem; margin-top: 5px; display: none; padding-left: 5px;">
-                    <i class="fas fa-exclamation-circle"></i> Invalid email format
-                </p>
-            </div>
-
-            <!-- Password Input -->
-            <label>Password <span style="color: #ff4444;">*</span></label>
-            <div style="position: relative;">
-                <i class="fas fa-lock" style="position: absolute; top: 14px; left: 15px; color: var(--text-muted);"></i>
-                <input type="password" placeholder="••••••••" required style="padding-left: 45px;">
-            </div>
-
-            <!-- Actions -->
-            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 25px; font-size: 0.85rem;">
-                <label style="display: flex; align-items: center; margin: 0; cursor: pointer; color: var(--text-muted);">
-                    <input type="checkbox" style="width: auto; margin: 0 8px 0 0;"> Remember me
-                </label>
-                <a href="#" style="color: var(--primary);">Forgot Password?</a>
-            </div>
-
-            <button type="submit" class="btn btn-primary" style="width: 100%;">
-                Login <i class="fas fa-arrow-right" style="margin-left: 8px;"></i>
-            </button>
-        </form>
-
-        <p class="text-center" style="margin-top: 20px; font-size: 0.9rem; color: var(--text-muted);">
-            Don't have an account? <a href="submit.html" style="color: var(--primary); font-weight: 600;">Submit Paper</a>
-        </p>
-    </div>
-</div>
-
-<!-- 3. FOOTER -->
-<footer>
-    <p>&copy; <span id="year"></span> IJMR Journal. All rights reserved.</p>
-</footer>
-
-<script src="js/app.js"></script>
-<script>
-    // Email Validation Logic
-    const emailInput = document.getElementById('emailInput');
-    const emailError = document.getElementById('emailError');
-    const emailPattern = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
-
-    // Validate on typing
-    emailInput.addEventListener('input', function() {
-        if (this.value.length > 0) {
-            if (!emailPattern.test(this.value)) {
-                this.style.borderColor = '#ff4444'; // Red border
-                emailError.style.display = 'block'; // Show error
-            } else {
-                this.style.borderColor = ''; // Reset border
-                emailError.style.display = 'none'; // Hide error
-            }
-        } else {
-            this.style.borderColor = '';
-            emailError.style.display = 'none';
-        }
-    });
-
-    function login() {
-        // Final check before submission
-        if (!emailPattern.test(emailInput.value)) {
-            emailInput.style.borderColor = '#ff4444';
-            emailError.style.display = 'block';
-            emailInput.focus();
-            return; // Stop login
-        }
-
-        // Simple mock login visual feedback
-        const btn = document.querySelector('button[type="submit"]');
-        const originalText = btn.innerHTML;
-        
-        btn.innerHTML = '<i class="fas fa-circle-notch fa-spin"></i> Authenticating...';
-        btn.style.opacity = '0.7';
-        
-        setTimeout(() => {
-            alert("Login Successful! (Demo)");
-            btn.innerHTML = originalText;
-            btn.style.opacity = '1';
-        }, 1500);
+        // Start listening for auth changes immediately
+        this.monitorAuthState();
     }
-</script>
-</body>
-</html>
+
+    /**
+     * Real-time listener: Runs whenever user logs in or out
+     * Persists session even if page refreshes.
+     */
+    monitorAuthState() {
+        onAuthStateChanged(this.auth, (user) => {
+            this.user = user;
+            if (user) {
+                console.log("User is logged in:", user.email);
+            } else {
+                console.log("User is logged out");
+            }
+            this.updateUI(user);
+        });
+    }
+
+    /**
+     * Login Function
+     * @param {string} email 
+     * @param {string} password 
+     * @param {string} role - Selected from dropdown (Stored locally for UI only)
+     */
+    async login(email, password, role) {
+        try {
+            // 1. Authenticate with Firebase
+            const userCredential = await signInWithEmailAndPassword(this.auth, email, password);
+            
+            // 2. Store the role (Since Firebase Auth doesn't store roles by default without DB)
+            localStorage.setItem('ijmr_user_role', role);
+
+            return userCredential.user;
+        } catch (error) {
+            console.error("Login Error:", error.code, error.message);
+            
+            // Convert Firebase error codes to friendly messages
+            let message = "Login failed. Please try again.";
+            if (error.code === 'auth/invalid-credential') message = "Incorrect email or password.";
+            if (error.code === 'auth/user-not-found') message = "No account found with this email.";
+            if (error.code === 'auth/wrong-password') message = "Incorrect password.";
+            if (error.code === 'auth/too-many-requests') message = "Too many failed attempts. Try later.";
+            
+            throw new Error(message);
+        }
+    }
+
+    /**
+     * Logout Function
+     */
+    async logout() {
+        try {
+            await signOut(this.auth);
+            localStorage.removeItem('ijmr_user_role'); // Clear role
+            window.location.href = 'login.html'; // Redirect to login
+        } catch (error) {
+            console.error("Logout Error:", error);
+        }
+    }
+
+    /**
+     * Updates the Navbar based on login state
+     */
+    updateUI(user) {
+        const loginLink = document.querySelector('nav a[href="login.html"]');
+        const nav = document.querySelector('nav');
+        
+        // Remove existing badge if any
+        const existingBadge = document.getElementById('user-badge');
+        if (existingBadge) existingBadge.remove();
+
+        if (user && loginLink) {
+            // --- LOGGED IN STATE ---
+            
+            // 1. Change "Login" to "Logout"
+            loginLink.textContent = 'Logout';
+            loginLink.href = '#';
+            loginLink.onclick = (e) => {
+                e.preventDefault();
+                if(confirm(`Sign out from ${user.email}?`)) {
+                    this.logout();
+                }
+            };
+
+            // 2. Show Role Badge
+            const role = localStorage.getItem('ijmr_user_role') || 'User';
+            const badge = document.createElement('span');
+            badge.id = 'user-badge';
+            badge.innerHTML = `<i class="fas fa-user-circle"></i> ${role}`;
+            badge.style.cssText = `
+                color: var(--primary); 
+                font-size: 0.8rem; 
+                border: 1px solid var(--primary); 
+                padding: 4px 10px; 
+                border-radius: 20px; 
+                margin-left: 10px; 
+                display: inline-flex; 
+                align-items: center; 
+                gap: 5px;
+            `;
+            // Insert badge before the logout link (or append to nav)
+            nav.insertBefore(badge, loginLink);
+
+        } else if (loginLink) {
+            // --- LOGGED OUT STATE ---
+            loginLink.textContent = 'Login';
+            loginLink.href = 'login.html';
+            loginLink.onclick = null; // Remove logout handler
+        }
+    }
+}
+
+// Initialize and Export
+const Auth = new AuthService();
+// Attach to window so HTML can access it easily
+window.Auth = Auth;

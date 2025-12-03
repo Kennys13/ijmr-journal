@@ -1,18 +1,179 @@
 <!DOCTYPE html>
-<html>
-<head><link rel="stylesheet" href="css/style.css"><script src="js/app.js"></script></head>
-<body onload="loadArchive()">
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Archives | IJMR</title>
+    <link rel="stylesheet" href="css/style.css">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <style>
+        /* Specific Styles for the Glass Table */
+        .table-container {
+            overflow-x: auto;
+        }
+        .glass-table {
+            width: 100%;
+            border-collapse: collapse;
+            color: var(--text);
+            margin-top: 10px;
+        }
+        .glass-table th {
+            text-align: left;
+            padding: 16px;
+            border-bottom: 2px solid var(--glass-border);
+            color: var(--primary);
+            font-weight: 600;
+            text-transform: uppercase;
+            font-size: 0.85rem;
+            letter-spacing: 0.5px;
+        }
+        .glass-table td {
+            padding: 16px;
+            border-bottom: 1px solid var(--glass-border);
+            color: var(--text-muted);
+            vertical-align: middle;
+        }
+        .glass-table tr:last-child td {
+            border-bottom: none;
+        }
+        .glass-table tr:hover td {
+            background: rgba(255, 255, 255, 0.05);
+            color: var(--text);
+        }
+        
+        /* Action Button */
+        .download-btn {
+            display: inline-flex;
+            align-items: center;
+            padding: 6px 12px;
+            font-size: 0.8rem;
+            border-radius: 6px;
+            text-decoration: none;
+            background: rgba(0, 210, 255, 0.1);
+            color: var(--primary);
+            border: 1px solid var(--glass-border);
+            transition: 0.3s;
+        }
+        .download-btn:hover {
+            background: var(--primary);
+            color: #000;
+            box-shadow: 0 0 10px rgba(0, 210, 255, 0.4);
+        }
+        
+        /* Badge for Year */
+        .year-badge {
+            background: rgba(250, 204, 21, 0.1);
+            color: var(--accent);
+            padding: 4px 8px;
+            border-radius: 4px;
+            font-size: 0.75rem;
+            border: 1px solid rgba(250, 204, 21, 0.2);
+        }
+    </style>
+</head>
+<body>
 
-<nav>…menu…</nav>
+<!-- 1. NAVIGATION -->
+<header>
+    <div class="brand"><h1>IJMR</h1><p>Research Archives</p></div>
+</header>
 
-<div class="section">
-<div class="card">
-<h2>Published Archives</h2>
-<table>
-<thead><tr><th>Title</th><th>Year</th><th>DOI</th><th>Action</th></tr></thead>
-<tbody id="data"></tbody>
-</table>
+<nav>
+    <a href="index.html">Home</a>
+    <a href="submit.html">Submit</a>
+    <a href="archive.html" class="active">Archives</a>
+    <a href="login.html">Login</a>
+</nav>
+
+<!-- 2. ARCHIVE CONTENT -->
+<div class="section reveal">
+    <div class="glass-card">
+        <div style="display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; margin-bottom: 20px;">
+            <h2 style="color: var(--text); margin: 0;">Published Articles</h2>
+            
+            <!-- Search Filter -->
+            <div style="position: relative; width: 250px;">
+                <i class="fas fa-search" style="position: absolute; top: 12px; left: 12px; color: var(--text-muted);"></i>
+                <input type="text" id="searchInput" placeholder="Search title or author..." onkeyup="filterTable()" 
+                       style="margin: 0; padding-left: 35px; border-radius: 20px; font-size: 0.9rem;">
+            </div>
+        </div>
+
+        <div class="table-container">
+            <table class="glass-table">
+                <thead>
+                    <tr>
+                        <th>Year</th>
+                        <th>Article Title</th>
+                        <th>Author(s)</th>
+                        <th>Domain</th>
+                        <th>Action</th>
+                    </tr>
+                </thead>
+                <tbody id="data">
+                    <!-- Data will be populated by JS below -->
+                </tbody>
+            </table>
+        </div>
+        
+        <!-- Pagination Mockup -->
+        <div class="text-center" style="margin-top: 30px;">
+            <button class="btn btn-outline" style="padding: 8px 20px; font-size: 0.9rem;">Load More</button>
+        </div>
+    </div>
 </div>
-</div>
-<footer>IJMR</footer>
-</body></html>
+
+<!-- 3. FOOTER -->
+<footer>
+    <p>&copy; <span id="year"></span> IJMR Journal. All rights reserved.</p>
+</footer>
+
+<script src="js/app.js"></script>
+<script>
+    // Mock Data for the Archives
+    const papers = [
+        { year: "2024", title: "AI in Early Cancer Detection: A Review", author: "Dr. A. Smith", domain: "Medical", id: "101" },
+        { year: "2024", title: "Sustainable Concrete using Plastic Waste", author: "R. Johnson, P. Lee", domain: "Engineering", id: "102" },
+        { year: "2023", title: "Impact of Remote Work on Corp Culture", author: "M. Williams", domain: "Management", id: "103" },
+        { year: "2023", title: "Cybersecurity Protocols for IoT Devices", author: "K. Chen", domain: "Comp Sci", id: "104" },
+        { year: "2023", title: "Modern Constitutional Law Amendments", author: "S. Gupta", domain: "Law", id: "105" },
+        { year: "2022", title: "Vertical Farming: Future of Agriculture", author: "T. Baker", domain: "Agriculture", id: "106" }
+    ];
+
+    const tbody = document.getElementById('data');
+
+    function loadArchive(data) {
+        tbody.innerHTML = "";
+        data.forEach(paper => {
+            const row = `
+                <tr>
+                    <td><span class="year-badge">${paper.year}</span></td>
+                    <td><strong>${paper.title}</strong><br><small style="color:var(--text-muted)">DOI: 10.ijmr.${paper.year}.${paper.id}</small></td>
+                    <td>${paper.author}</td>
+                    <td><span style="color: var(--primary);">${paper.domain}</span></td>
+                    <td>
+                        <a href="#" class="download-btn">
+                            <i class="fas fa-file-pdf" style="margin-right: 6px;"></i> PDF
+                        </a>
+                    </td>
+                </tr>
+            `;
+            tbody.innerHTML += row;
+        });
+    }
+
+    // Initial Load
+    loadArchive(papers);
+
+    // Filter Logic
+    function filterTable() {
+        const query = document.getElementById('searchInput').value.toLowerCase();
+        const filtered = papers.filter(p => 
+            p.title.toLowerCase().includes(query) || 
+            p.author.toLowerCase().includes(query)
+        );
+        loadArchive(filtered);
+    }
+</script>
+</body>
+</html>
