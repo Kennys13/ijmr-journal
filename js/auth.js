@@ -1,6 +1,5 @@
 /**
- * IJMR FIREBASE AUTHENTICATION
- * Configuration for ijmr-journal
+ * IJMR FIREBASE SERVICE (AUTH + DATABASE)
  */
 
 import { initializeApp } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-app.js";
@@ -8,11 +7,19 @@ import { getAnalytics } from "https://www.gstatic.com/firebasejs/10.8.0/firebase
 import { 
     getAuth, 
     signInWithEmailAndPassword, 
-    createUserWithEmailAndPassword, // Added for Registration
-    updateProfile,                  // Added for Profile Updates
+    createUserWithEmailAndPassword, 
+    updateProfile, 
     signOut, 
     onAuthStateChanged 
 } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-auth.js";
+
+// --- NEW: Import Firestore Functions ---
+import { 
+    getFirestore, 
+    doc, 
+    setDoc, 
+    getDoc 
+} from "https://www.gstatic.com/firebasejs/10.8.0/firebase-firestore.js";
 
 class AuthService {
     constructor() {
@@ -26,27 +33,30 @@ class AuthService {
             appId: "1:695247068404:web:b62030d0e9b8c0763c52a1",
             measurementId: "G-LLGEZ2EFPM"
         };
-        // --------------------------
 
-        // Initialize Firebase
         this.app = initializeApp(this.firebaseConfig);
         this.analytics = getAnalytics(this.app);
         this.auth = getAuth(this.app);
         
+        // --- NEW: Initialize Database ---
+        this.db = getFirestore(this.app);
+        
         this.user = null;
+        this.userProfile = null; // Store extra DB data here (role, etc)
 
-        // Start listening for auth changes immediately
         this.monitorAuthState();
     }
 
-    /**
-     * Real-time listener: Runs whenever user logs in or out
-     */
     monitorAuthState() {
-        onAuthStateChanged(this.auth, (user) => {
+        onAuthStateChanged(this.auth, async (user) => {
             this.user = user;
+            if (user) {
+                // If logged in, fetch their profile from Database
+                await this.fetchUserProfile(user.uid);
+            } else {
+                this.userProfile = null;
+            }
             
-            // Wait for DOM to be ready before updating UI
             if (document.readyState === "loading") {
                 document.addEventListener("DOMContentLoaded", () => this.updateUI(user));
             } else {
@@ -55,37 +65,46 @@ class AuthService {
         });
     }
 
-    /**
-     * Login Function
-     */
-    async login(email, password, role) {
+    // --- NEW: Helper to fetch data from Firestore ---
+    async fetchUserProfile(uid) {
         try {
-            const userCredential = await signInWithEmailAndPassword(this.auth, email, password);
-            localStorage.setItem('ijmr_user_role', role); // Store role locally
-            return userCredential.user;
+            const docRef = doc(this.db, "users", uid); // Look in 'users' collection
+            const docSnap = await getDoc(docRef);
+
+            if (docSnap.exists()) {
+                this.userProfile = docSnap.data(); // Save DB data to memory
+                console.log("Database Data Loaded:", this.userProfile);
+            } else {
+                console.log("No such document!");
+            }
         } catch (error) {
-            console.error("Login Error:", error.code);
-            throw this.handleError(error);
+            console.error("Error fetching profile:", error);
         }
     }
 
     /**
-     * Register Function (Create New Account)
+     * Register User & Save to Database
      */
-    async register(name, email, password, role) {
+    async register(name, email, password, role, photoBase64) {
         try {
-            // 1. Create User in Firebase
+            // 1. Create Authentication Account
             const userCredential = await createUserWithEmailAndPassword(this.auth, email, password);
             const user = userCredential.user;
 
-            // 2. Update Profile with Name
-            await updateProfile(user, {
-                displayName: name
-                // photoURL: "default_url" // Optional
-            });
+            // 2. Update Auth Profile
+            await updateProfile(user, { displayName: name });
 
-            // 3. Store Role
-            localStorage.setItem('ijmr_user_role', role);
+            // 3. --- NEW: Save Extended Data to Firestore Database ---
+            // We create a document inside the "users" collection with the same ID as the Auth UID
+            await setDoc(doc(this.db, "users", user.uid), {
+                fullName: name,
+                email: email,
+                role: role,
+                joinedDate: new Date().toISOString(),
+                // Note: Saving Base64 to DB is okay for small icons, 
+                // but usually better to use Firebase Storage. Keeping it simple here.
+                profilePhoto: photoBase64 || null 
+            });
 
             return user;
         } catch (error) {
@@ -94,139 +113,94 @@ class AuthService {
         }
     }
 
-    /**
-     * Update Profile Data
-     */
-    async updateUserProfile(name, photoURL) {
-        if (!this.auth.currentUser) throw new Error("No user logged in.");
-        
+    async login(email, password) {
         try {
-            await updateProfile(this.auth.currentUser, {
-                displayName: name,
-                photoURL: photoURL
-            });
-            // Force UI update
-            this.updateUI(this.auth.currentUser);
+            const userCredential = await signInWithEmailAndPassword(this.auth, email, password);
+            // We don't need to pass 'role' manually anymore, we fetch it from DB in monitorAuthState
+            return userCredential.user;
         } catch (error) {
-            console.error("Update Error:", error);
-            throw new Error("Failed to update profile.");
+            throw this.handleError(error);
         }
     }
 
-    /**
-     * Logout Function
-     */
     async logout() {
         try {
             await signOut(this.auth);
-            localStorage.removeItem('ijmr_user_role');
             window.location.href = 'login.html';
         } catch (error) {
             console.error("Logout Error:", error);
         }
     }
 
-    /**
-     * Helper to format error messages
-     */
     handleError(error) {
         let message = "Operation failed.";
         if (error.code === 'auth/wrong-password') message = "Incorrect password.";
-        else if (error.code === 'auth/user-not-found') message = "No account found with this email.";
-        else if (error.code === 'auth/email-already-in-use') message = "This email is already registered.";
-        else if (error.code === 'auth/weak-password') message = "Password should be at least 6 characters.";
-        else if (error.code === 'auth/invalid-email') message = "Invalid email format.";
+        else if (error.code === 'auth/user-not-found') message = "No account found.";
         return new Error(message);
     }
 
-    /**
-     * Updates the Navbar based on login state
-     */
     updateUI(user) {
         const nav = document.querySelector('nav');
-        // Find login link
         let loginLink = document.querySelector('nav a[href="login.html"]');
-        
-        if (!loginLink && nav) {
-             const links = nav.querySelectorAll('a');
-             for (const link of links) {
-                 if (link.textContent.includes('Logout') || link.textContent.includes('Login')) {
-                     loginLink = link;
-                     break;
-                 }
-             }
-        }
-
-        // Cleanup old elements
         const oldProfileBtn = document.getElementById('profile-btn');
         if (oldProfileBtn) oldProfileBtn.remove();
 
-        if (user && loginLink) {
-            // --- LOGGED IN STATE ---
-            
-            // 1. Change "Login" to "Logout"
-            loginLink.textContent = 'Logout';
-            loginLink.href = '#';
-            loginLink.style.color = '#ff6b6b'; 
-            loginLink.onclick = (e) => {
-                e.preventDefault();
-                if(confirm(`Sign out from ${user.email}?`)) this.logout();
-            };
+        if (user) {
+            if(loginLink) loginLink.style.display = 'none';
 
-            // 2. Create Circular Profile Button
+            // Get Data from DB (if loaded) or fallback to Auth default
+            const dbPhoto = this.userProfile?.profilePhoto;
+            const dbRole = this.userProfile?.role || 'User'; // Get Role from DB!
+            
             const initials = (user.displayName || user.email || 'U').substring(0, 2).toUpperCase();
-            // Use UI Avatars service if no photoURL is set
-            const photoURL = user.photoURL || `https://ui-avatars.com/api/?name=${user.displayName || user.email}&background=00d2ff&color=fff&size=128`;
+            const photoURL = dbPhoto || user.photoURL || `https://ui-avatars.com/api/?name=${user.displayName}&background=00d2ff&color=fff`;
             
-            const profileBtn = document.createElement('a');
+            const profileBtn = document.createElement('div');
             profileBtn.id = 'profile-btn';
-            // LINK TO THE NEW PROFILE PAGE
-            profileBtn.href = 'profile.html'; 
-            
-            profileBtn.style.cssText = `
-                display: flex;
-                align-items: center;
-                justify-content: center;
-                width: 38px;
-                height: 38px;
-                margin-left: 15px;
-                margin-right: 5px;
-                border-radius: 50%;
-                border: 2px solid var(--primary);
-                background-color: rgba(0, 210, 255, 0.1); 
-                background-image: url('${photoURL}');
-                background-size: cover;
-                background-position: center;
-                color: #fff;
-                font-weight: bold;
-                font-size: 14px;
-                cursor: pointer;
-                transition: transform 0.2s ease;
-                box-shadow: 0 0 10px rgba(0, 210, 255, 0.3);
-                text-decoration: none;
+            profileBtn.style.cssText = `display: flex; align-items: center; gap: 10px; cursor: pointer;`;
+
+            profileBtn.innerHTML = `
+                <div style="text-align:right; line-height:1.2;">
+                    <div style="color:white; font-size:0.9rem; font-weight:bold;">${user.displayName}</div>
+                    <div style="color:var(--primary); font-size:0.75rem;">${dbRole}</div>
+                </div>
+                <div style="
+                    width: 40px; height: 40px; border-radius: 50%; 
+                    background-image: url('${photoURL}'); background-size: cover; background-position: center;
+                    border: 2px solid var(--primary); box-shadow: 0 0 10px rgba(0, 210, 255, 0.3);
+                "></div>
             `;
             
-            // Inner text (hidden if image loads)
-            profileBtn.innerHTML = `<span style="opacity:0">${initials}</span>`;
+            profileBtn.onclick = (e) => {
+                if(confirm(`Sign out?`)) this.logout();
+            };
 
-            // Hover effects
-            profileBtn.onmouseover = () => { profileBtn.style.transform = 'scale(1.1)'; };
-            profileBtn.onmouseout = () => { profileBtn.style.transform = 'scale(1)'; };
-
-            if(nav) nav.insertBefore(profileBtn, loginLink);
-
-        } else if (loginLink) {
-            // --- LOGGED OUT STATE ---
-            loginLink.textContent = 'Login';
-            loginLink.href = 'login.html';
-            loginLink.style.color = ''; 
-            loginLink.onclick = null;
+            if(nav) nav.appendChild(profileBtn);
+        } else {
+            if(loginLink) loginLink.style.display = 'inline-block';
         }
     }
 }
 
-// Initialize
 const Auth = new AuthService();
-
-// Export
 export default Auth;
+```
+
+### Key Changes Explained:
+
+1.  **`getFirestore`, `doc`, `setDoc`**: These functions allow us to talk to the database.
+2.  **`register` Function**: Now, after creating the account, it runs `setDoc`. This creates a folder in your database called `users`, finds the file named after the `user.uid`, and writes their Role, Name, and Photo into it.
+3.  **`fetchUserProfile`**: When the website loads (`monitorAuthState`), it automatically asks the database: "Hey, give me the details for this User ID." It stores this in `this.userProfile`.
+4.  **`updateUI`**: Now displays the **Role** fetched from the database, not just from LocalStorage.
+
+### Step 3: Update `login.html` (Minor Change)
+
+Since we are now fetching the role from the database automatically, you don't need to pass the `role` variable in the login function in your `login.html` script.
+
+**Change this line in `login.html`:**
+```javascript
+// OLD
+await Auth.login(email, password, role);
+
+// NEW (Role is ignored during login, fetched from DB instead)
+await Auth.login(email, password);
