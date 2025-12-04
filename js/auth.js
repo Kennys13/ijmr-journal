@@ -76,6 +76,7 @@ class AuthService {
                 console.log("Database Data Loaded:", this.userProfile);
             } else {
                 console.log("No such document!");
+                this.userProfile = null;
             }
         } catch (error) {
             console.error("Error fetching profile:", error);
@@ -113,11 +114,43 @@ class AuthService {
         }
     }
 
-    async login(email, password) {
+    /**
+     * Login with Role Verification
+     */
+    async login(email, password, selectedRole) {
         try {
+            // 1. Authenticate with Firebase Auth (Email/Pass check)
             const userCredential = await signInWithEmailAndPassword(this.auth, email, password);
-            // We don't need to pass 'role' manually anymore, we fetch it from DB in monitorAuthState
-            return userCredential.user;
+            const user = userCredential.user;
+
+            // 2. Verify Role from Database
+            // We must verify the user is actually the role they claim to be in the dropdown
+            const docRef = doc(this.db, "users", user.uid);
+            const docSnap = await getDoc(docRef);
+
+            if (!docSnap.exists()) {
+                await signOut(this.auth); // Logout immediately if no profile
+                throw new Error("User profile not found. Please register.");
+            }
+
+            const dbData = docSnap.data();
+            const registeredRole = dbData.role || "User";
+
+            // Normalize strings for comparison (Handle "Author" matching "Author / Researcher")
+            // We check if the Selected Role string *contains* the Registered Role word, or vice versa
+            const normSelected = selectedRole.toLowerCase();
+            const normRegistered = registeredRole.toLowerCase();
+
+            // Logic: If I registered as "Author", I can login as "Author / Researcher".
+            // If I registered as "Reviewer", I CANNOT login as "Editor".
+            const isMatch = normSelected.includes(normRegistered) || normRegistered.includes(normSelected);
+
+            if (!isMatch) {
+                await signOut(this.auth); // Deny access
+                throw new Error(`Access Denied: You are registered as a "${registeredRole}", not a "${selectedRole}".`);
+            }
+
+            return user;
         } catch (error) {
             throw this.handleError(error);
         }
@@ -133,9 +166,13 @@ class AuthService {
     }
 
     handleError(error) {
-        let message = "Operation failed.";
+        let message = error.message || "Operation failed.";
+        
+        // Map standard Firebase errors
         if (error.code === 'auth/wrong-password') message = "Incorrect password.";
         else if (error.code === 'auth/user-not-found') message = "No account found.";
+        else if (error.code === 'auth/invalid-credential') message = "Invalid email or password.";
+        
         return new Error(message);
     }
 
@@ -161,7 +198,7 @@ class AuthService {
 
             profileBtn.innerHTML = `
                 <div style="text-align:right; line-height:1.2;">
-                    <div style="color:white; font-size:0.9rem; font-weight:bold;">${user.displayName}</div>
+                    <div style="color:white; font-size:0.9rem; font-weight:bold;">${user.displayName || user.email}</div>
                     <div style="color:var(--primary); font-size:0.75rem;">${dbRole}</div>
                 </div>
                 <div style="
@@ -184,23 +221,3 @@ class AuthService {
 
 const Auth = new AuthService();
 export default Auth;
-```
-
-### Key Changes Explained:
-
-1.  **`getFirestore`, `doc`, `setDoc`**: These functions allow us to talk to the database.
-2.  **`register` Function**: Now, after creating the account, it runs `setDoc`. This creates a folder in your database called `users`, finds the file named after the `user.uid`, and writes their Role, Name, and Photo into it.
-3.  **`fetchUserProfile`**: When the website loads (`monitorAuthState`), it automatically asks the database: "Hey, give me the details for this User ID." It stores this in `this.userProfile`.
-4.  **`updateUI`**: Now displays the **Role** fetched from the database, not just from LocalStorage.
-
-### Step 3: Update `login.html` (Minor Change)
-
-Since we are now fetching the role from the database automatically, you don't need to pass the `role` variable in the login function in your `login.html` script.
-
-**Change this line in `login.html`:**
-```javascript
-// OLD
-await Auth.login(email, password, role);
-
-// NEW (Role is ignored during login, fetched from DB instead)
-await Auth.login(email, password);
