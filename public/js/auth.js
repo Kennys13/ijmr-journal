@@ -1,11 +1,11 @@
 /**
- * IJMR SUPABASE AUTHENTICATION
+ * IJMR SUPABASE AUTHENTICATION & PROFILE MANAGER
  * Configuration for Project: xspbtzxgawwynybzfznv
  */
 
 import { createClient } from 'https://cdn.jsdelivr.net/npm/@supabase/supabase-js/+esm';
 
-// --- YOUR SUPABASE CONFIGURATION ---
+// --- CONFIGURATION ---
 const SUPABASE_URL = 'https://xspbtzxgawwynybzfznv.supabase.co';
 const SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InhzcGJ0enhnYXd3eW55Ynpmem52Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3NjUxNzA0MzcsImV4cCI6MjA4MDc0NjQzN30.0Htpq1U2B8EhpgeyEwRr6FByEEUF58h_PTo7twYQN7k';
 
@@ -19,18 +19,30 @@ class AuthService {
         this.monitorAuthState();
     }
 
+    // 1. Monitor & Protect Routes
     monitorAuthState() {
         this.client.auth.onAuthStateChange(async (event, session) => {
+            const path = window.location.pathname;
+            
             if (session?.user) {
                 this.user = session.user;
-                // Fetch extra details (Role, Name) from 'users' table
                 await this.fetchUserProfile(this.user.id);
-                console.log("Logged in:", this.user.email);
+                
+                // If on login page but logged in, go home
+                if (path.includes('login.html') || path.includes('register.html')) {
+                    window.location.href = 'index.html';
+                }
             } else {
                 this.user = null;
                 this.userProfile = null;
+
+                // PROTECT PROFILE PAGE: Redirect if not logged in
+                if (path.includes('profile.html')) {
+                    window.location.href = 'login.html';
+                }
             }
             
+            // Update UI when DOM is ready
             if (document.readyState === "loading") {
                 document.addEventListener("DOMContentLoaded", () => this.updateUI(this.user));
             } else {
@@ -40,16 +52,20 @@ class AuthService {
     }
 
     async fetchUserProfile(userId) {
-        const { data, error } = await this.client
-            .from('users')
-            .select('*')
-            .eq('id', userId)
-            .single();
-
-        if (data) this.userProfile = data;
-        if (error) console.error("Profile Error:", error.message);
+        try {
+            const { data, error } = await this.client
+                .from('users')
+                .select('*')
+                .eq('id', userId)
+                .single();
+            
+            if (data) this.userProfile = data;
+        } catch (err) {
+            console.error("Profile load error:", err);
+        }
     }
 
+    // 2. Login Logic
     async login(email, password, role) {
         const { data, error } = await this.client.auth.signInWithPassword({
             email: email,
@@ -58,47 +74,67 @@ class AuthService {
 
         if (error) throw error;
 
-        // Strict Role Check
+        // Verify Role matches Database
         const { data: profile } = await this.client
             .from('users')
             .select('role')
             .eq('id', data.user.id)
             .single();
 
-        // If the role selected in dropdown doesn't match database role
-        if (profile && role && !role.toLowerCase().includes(profile.role.toLowerCase()) && !profile.role.toLowerCase().includes(role.toLowerCase())) {
-            await this.logout();
-            throw new Error(`Access Denied. You are registered as a ${profile.role}.`);
+        if (profile && role) {
+            const dbRole = (profile.role || "").toLowerCase();
+            const selectedRole = role.toLowerCase();
+            if (!selectedRole.includes(dbRole) && !dbRole.includes(selectedRole)) {
+                await this.logout();
+                throw new Error(`Access Denied. You are registered as a "${profile.role}".`);
+            }
         }
-
         return data.user;
     }
 
-    async register(name, email, password, role, photoBase64) {
-        // 1. Sign Up in Auth
-        const { data, error } = await this.client.auth.signUp({
-            email: email,
-            password: password,
-            options: { data: { full_name: name } }
-        });
+    // 3. Upload Avatar (Max 500KB)
+    async uploadAvatar(file) {
+        if (!this.user) throw new Error("Not logged in");
+        
+        // Size Validation (500KB = 500 * 1024 bytes)
+        if (file.size > 500 * 1024) {
+            throw new Error("File size exceeds 500KB limit.");
+        }
+
+        const fileExt = file.name.split('.').pop();
+        const fileName = `${this.user.id}-${Date.now()}.${fileExt}`;
+        const filePath = `${fileName}`;
+
+        // Upload to 'avatars' bucket
+        const { error: uploadError } = await this.client.storage
+            .from('avatars')
+            .upload(filePath, file, { upsert: true });
+
+        if (uploadError) throw uploadError;
+
+        // Get Public URL
+        const { data: { publicUrl } } = this.client.storage
+            .from('avatars')
+            .getPublicUrl(filePath);
+
+        return publicUrl;
+    }
+
+    // 4. Update Profile Data
+    async updateProfileData(name, photoURL) {
+        if (!this.user) return;
+
+        // Update Database
+        const { error } = await this.client
+            .from('users')
+            .update({ full_name: name, avatar_url: photoURL })
+            .eq('id', this.user.id);
 
         if (error) throw error;
-        const user = data.user;
 
-        // 2. Save Profile to 'users' table
-        // Note: photoBase64 is ignored here to keep database light. 
-        // In a real app, upload to Storage. We use UI Avatars fallback.
-        const { error: dbError } = await this.client
-            .from('users')
-            .insert([{ 
-                id: user.id, 
-                full_name: name, 
-                email: email, 
-                role: role 
-            }]);
-
-        if (dbError) throw dbError;
-        return user;
+        // Update Local State & UI immediately
+        this.userProfile = { ...this.userProfile, full_name: name, avatar_url: photoURL };
+        this.updateUI(this.user);
     }
 
     async logout() {
@@ -106,46 +142,47 @@ class AuthService {
         window.location.href = 'login.html';
     }
 
+    // 5. Navbar UI with Profile Dropdown
     updateUI(user) {
         const nav = document.querySelector('nav');
-        // Try to find the login link container or link itself
-        let loginLink = document.querySelector('nav a[href="login.html"]');
-        
-        // Remove old profile button
-        const oldBtn = document.getElementById('profile-btn');
-        if (oldBtn) oldBtn.remove();
+        // Find existing login link logic
+        let loginLink = null;
+        if(nav) {
+            nav.querySelectorAll('a').forEach(link => {
+                if(link.textContent.includes('Login')) loginLink = link;
+            });
+        }
 
-        if (user) {
+        // Cleanup
+        const oldProfile = document.getElementById('user-profile-widget');
+        if (oldProfile) oldProfile.remove();
+
+        if (user && nav) {
             if(loginLink) loginLink.style.display = 'none';
 
-            // Data Fallbacks
-            const name = this.userProfile?.full_name || user.user_metadata?.full_name || user.email;
-            const role = this.userProfile?.role || 'User';
-            const initials = name.substring(0, 2).toUpperCase();
-            const photoUrl = `https://ui-avatars.com/api/?name=${name}&background=00d2ff&color=fff`;
+            // Data
+            const name = this.userProfile?.full_name || user.email;
+            const photo = this.userProfile?.avatar_url || `https://ui-avatars.com/api/?name=${name}&background=00d2ff&color=fff`;
 
-            // Create Profile Button
-            const btn = document.createElement('div');
-            btn.id = 'profile-btn';
-            btn.style.cssText = `
-                display: flex; align-items: center; gap: 10px; cursor: pointer; margin-left: auto;
-            `;
+            // Create Profile Widget
+            const container = document.createElement('div');
+            container.id = 'user-profile-widget';
+            container.style.cssText = `display: flex; align-items: center; gap: 12px; cursor: pointer; margin-left: auto; position: relative;`;
             
-            btn.innerHTML = `
-                <div style="text-align:right; line-height:1.2;">
-                    <div style="color:#e2e8f0; font-size:0.9rem; font-weight:bold;">${name}</div>
-                    <div style="color:var(--primary); font-size:0.75rem;">${role}</div>
+            container.innerHTML = `
+                <div style="text-align:right; line-height:1.2; display: none; sm:display: block;">
+                    <div style="color:white; font-size:0.9rem; font-weight:600;">${name}</div>
+                    <div style="color:#2dd4bf; font-size:0.75rem;">Online</div>
                 </div>
-                <div style="
-                    width: 40px; height: 40px; border-radius: 50%;
-                    background-image: url('${photoUrl}'); background-size: cover;
-                    border: 2px solid var(--primary);
-                "></div>
+                <img src="${photo}" style="width:42px; height:42px; border-radius:50%; border:2px solid #2dd4bf; object-fit: cover;">
             `;
 
-            btn.onclick = () => { if(confirm('Logout?')) this.logout(); };
-            
-            if(nav) nav.appendChild(btn);
+            // Click to go to Profile Settings
+            container.onclick = () => {
+                window.location.href = 'profile.html';
+            };
+
+            nav.appendChild(container);
         } else {
             if(loginLink) loginLink.style.display = 'block';
         }
