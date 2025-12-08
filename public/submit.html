@@ -110,7 +110,6 @@
 
         try {
             // 4. Upload File to Storage
-            // Ensure bucket 'submissions' exists and has INSERT policy for authenticated users
             const fileName = `${user.id}/${Date.now()}_${file.name.replace(/\s+/g, '_')}`; // Sanitize filename
             
             const { data: fileData, error: uploadError } = await supabase.storage
