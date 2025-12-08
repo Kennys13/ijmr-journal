@@ -1,15 +1,84 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Submit Manuscript | IJMR</title>
+    <link rel="stylesheet" href="css/style.css">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+</head>
+<body>
+
+<header>
+    <div class="brand"><h1>IJMR</h1><p>Submission Portal</p></div>
+</header>
+
+<nav>
+    <a href="index.html">Home</a>
+    <a href="submit.html" class="active">Submit</a>
+    <a href="login.html">Login</a>
+</nav>
+
+<div class="section reveal">
+    <div class="glass-card form-container">
+        <h2 class="text-center" style="color: var(--primary);">Submit Manuscript</h2>
+        <p class="text-center" style="margin-bottom: 30px; color: var(--text-muted);">
+            Complete the details below to initiate peer review.
+        </p>
+        
+        <form id="submitForm">
+            
+            <label>Author Full Name <span style="color: #ff4444;">*</span></label>
+            <input type="text" id="authorName" placeholder="e.g. John Doe" required>
+
+            <label>Email Address <span style="color: #ff4444;">*</span></label>
+            <input type="email" id="authorEmail" placeholder="john@university.edu" required>
+
+            <label>Research Domain <span style="color: #ff4444;">*</span></label>
+            <select id="paperDomain" required>
+                <option value="" disabled selected>Select a Domain</option>
+                <option value="Computer Science">Computer Science</option>
+                <option value="Engineering">Engineering</option>
+                <option value="Medical Sciences">Medical Sciences</option>
+                <option value="Management">Management</option>
+            </select>
+
+            <label>Paper Title <span style="color: #ff4444;">*</span></label>
+            <input type="text" id="paperTitle" placeholder="Enter the full title" required>
+
+            <label>Abstract <span style="color: #ff4444;">*</span></label>
+            <textarea id="paperAbstract" rows="5" placeholder="Paste your abstract here..." required></textarea>
+
+            <label>Upload File (PDF/Docx) <span style="color: #ff4444;">*</span></label>
+            <div style="border: 2px dashed var(--glass-border); padding: 20px; text-align: center; border-radius: 8px; margin-bottom: 20px;">
+                <p style="color: var(--text-muted); margin-bottom: 10px;">Drag & Drop or Click to Upload</p>
+                <input type="file" style="display: none;" id="file" required accept=".pdf,.doc,.docx">
+                <button type="button" class="btn btn-outline" onclick="document.getElementById('file').click()">Select File</button>
+                <p id="filename" style="margin-top: 10px; font-size: 0.8rem; color: var(--primary);"></p>
+            </div>
+
+            <button type="submit" id="submitBtn" class="btn btn-primary" style="width: 100%;">
+                <i class="fas fa-paper-plane" style="margin-right: 8px;"></i> Submit Paper
+            </button>
+
+            <p id="statusMsg" style="text-align: center; margin-top: 15px; font-size: 0.9rem; display: none;"></p>
+        </form>
+    </div>
+</div>
+
 <script src="js/app.js"></script>
 
+<!-- SUPABASE LOGIC -->
 <script type="module">
     import { createClient } from 'https://cdn.jsdelivr.net/npm/@supabase/supabase-js/+esm';
     
-    // --- YOUR KEYS ---
+    // --- YOUR SUPABASE KEYS (DO NOT CHANGE) ---
     const SUPABASE_URL = 'https://xspbtzxgawwynybzfznv.supabase.co';
     const SUPABASE_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InhzcGJ0enhnYXd3eW55Ynpmem52Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3NjUxNzA0MzcsImV4cCI6MjA4MDc0NjQzN30.0Htpq1U2B8EhpgeyEwRr6FByEEUF58h_PTo7twYQN7k';
     
     const supabase = createClient(SUPABASE_URL, SUPABASE_KEY);
 
-    // File Selection Logic
+    // 1. File Selection UI Logic
     document.getElementById('file').addEventListener('change', function(){
         document.getElementById('filename').innerText = this.files[0] ? this.files[0].name : '';
     });
@@ -19,10 +88,10 @@
     form.addEventListener('submit', async (e) => {
         e.preventDefault();
 
-        // 1. Check Login
+        // 2. Check Login Status
         const { data: { user } } = await supabase.auth.getUser();
         if (!user) {
-            alert("Please login first.");
+            alert("Please login first to submit a paper.");
             window.location.href = "login.html";
             return;
         }
@@ -33,27 +102,26 @@
 
         if (!file) return alert("Please select a file");
 
-        // UI Loading
+        // 3. UI Loading State
         btn.innerHTML = '<i class="fas fa-circle-notch fa-spin"></i> Uploading...';
         btn.disabled = true;
         msg.style.display = 'none';
 
         try {
-            // 2. Upload File to 'submissions' bucket
-            // Ensure you created a bucket named 'submissions' in Supabase Storage
+            // 4. Upload File to Storage
             const fileName = `${user.id}/${Date.now()}_${file.name}`;
-            const { data: fileData, error: uploadError } = await supabase.storage
+            const { error: uploadError } = await supabase.storage
                 .from('submissions')
                 .upload(fileName, file);
 
             if (uploadError) throw uploadError;
 
-            // 3. Get Public URL
+            // 5. Get Public URL
             const { data: { publicUrl } } = supabase.storage
                 .from('submissions')
                 .getPublicUrl(fileName);
 
-            // 4. Insert Record into 'submissions' table
+            // 6. Save Data to Database
             const { error: dbError } = await supabase
                 .from('submissions')
                 .insert([{
@@ -63,12 +131,13 @@
                     domain: document.getElementById('paperDomain').value,
                     title: document.getElementById('paperTitle').value,
                     abstract: document.getElementById('paperAbstract').value,
-                    file_url: publicUrl
+                    file_url: publicUrl,
+                    status: 'Under Review'
                 }]);
 
             if (dbError) throw dbError;
 
-            // Success
+            // 7. Success Message
             btn.innerHTML = '<i class="fas fa-check"></i> Submitted!';
             btn.style.background = '#10b981';
             msg.style.display = 'block';
