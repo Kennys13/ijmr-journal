@@ -98,7 +98,8 @@
 
         const btn = document.getElementById('submitBtn');
         const msg = document.getElementById('statusMsg');
-        const file = document.getElementById('file').files[0];
+        const fileInput = document.getElementById('file');
+        const file = fileInput.files[0];
 
         if (!file) return alert("Please select a file");
 
@@ -109,12 +110,17 @@
 
         try {
             // 4. Upload File to Storage
-            const fileName = `${user.id}/${Date.now()}_${file.name}`;
-            const { error: uploadError } = await supabase.storage
+            // Ensure bucket 'submissions' exists and has INSERT policy for authenticated users
+            const fileName = `${user.id}/${Date.now()}_${file.name.replace(/\s+/g, '_')}`; // Sanitize filename
+            
+            const { data: fileData, error: uploadError } = await supabase.storage
                 .from('submissions')
-                .upload(fileName, file);
+                .upload(fileName, file, {
+                    cacheControl: '3600',
+                    upsert: false
+                });
 
-            if (uploadError) throw uploadError;
+            if (uploadError) throw new Error(`Upload Failed: ${uploadError.message}`);
 
             // 5. Get Public URL
             const { data: { publicUrl } } = supabase.storage
@@ -135,7 +141,7 @@
                     status: 'Under Review'
                 }]);
 
-            if (dbError) throw dbError;
+            if (dbError) throw new Error(`Database Error: ${dbError.message}`);
 
             // 7. Success Message
             btn.innerHTML = '<i class="fas fa-check"></i> Submitted!';
@@ -147,10 +153,10 @@
             setTimeout(() => window.location.href = 'index.html', 2000);
 
         } catch (error) {
-            console.error("Error:", error);
+            console.error("Full Error:", error);
             msg.style.display = 'block';
             msg.style.color = '#ff4444';
-            msg.innerText = error.message;
+            msg.innerText = error.message; // Shows exact error on screen
             btn.innerHTML = 'Try Again';
             btn.disabled = false;
         }
