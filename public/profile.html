@@ -1,0 +1,82 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Profile | IJMR</title>
+    <link rel="stylesheet" href="css/style.css">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+</head>
+<body>
+
+<header>
+    <div class="brand"><h1>IJMR</h1><p>Researcher Profile</p></div>
+</header>
+
+<nav>
+    <a href="index.html">Home</a>
+    <a href="submit.html">Submit</a>
+    <a href="login.html">Logout</a>
+</nav>
+
+<div class="section reveal">
+    <div class="glass-card" style="max-width: 600px; margin: 0 auto;">
+        <h2 style="color: var(--primary); border-bottom: 1px solid var(--glass-border); padding-bottom: 15px;">Edit Profile</h2>
+        
+        <div style="display: flex; flex-direction: column; align-items: center; margin: 20px 0;">
+            <div id="profilePreview" style="
+                width: 100px; height: 100px; border-radius: 50%; 
+                background: rgba(255,255,255,0.1); border: 3px solid var(--primary);
+                background-size: cover; background-position: center; margin-bottom: 15px;
+            "></div>
+            <p id="userEmailDisplay" style="color: var(--text-muted);"></p>
+        </div>
+
+        <form id="profileForm">
+            <label>Full Name</label>
+            <input type="text" id="displayName">
+
+            <label>Photo URL</label>
+            <input type="text" id="photoURL" placeholder="https://...">
+
+            <button type="submit" id="saveBtn" class="btn btn-primary" style="width: 100%;">Save Changes</button>
+            <p id="msgBox" style="text-align: center; margin-top: 15px; display: none;"></p>
+        </form>
+        
+        <button id="logoutBtn" class="btn btn-outline" style="width: 100%; margin-top: 10px; border-color: #ff4444; color: #ff4444;">Logout</button>
+    </div>
+</div>
+
+<script src="js/app.js"></script>
+<script type="module">
+    import Auth from './js/auth.js';
+    import { onAuthStateChanged } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-auth.js";
+
+    const nameInput = document.getElementById('displayName');
+    const photoInput = document.getElementById('photoURL');
+    const preview = document.getElementById('profilePreview');
+
+    onAuthStateChanged(Auth.auth, (user) => {
+        if (user) {
+            nameInput.value = user.displayName || '';
+            photoInput.value = user.photoURL || '';
+            document.getElementById('userEmailDisplay').innerText = user.email;
+            const img = user.photoURL || `https://ui-avatars.com/api/?name=${user.email}&background=00d2ff&color=fff`;
+            preview.style.backgroundImage = `url('${img}')`;
+        } else {
+            window.location.href = 'login.html';
+        }
+    });
+
+    document.getElementById('profileForm').addEventListener('submit', async (e) => {
+        e.preventDefault();
+        try {
+            await Auth.updateUserProfile(nameInput.value, photoInput.value);
+            alert("Profile Updated!");
+        } catch(e) { alert(e.message); }
+    });
+
+    document.getElementById('logoutBtn').addEventListener('click', () => Auth.logout());
+</script>
+</body>
+</html>

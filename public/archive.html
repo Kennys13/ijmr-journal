@@ -1,0 +1,57 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Archives | IJMR</title>
+    <link rel="stylesheet" href="css/style.css">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <style>
+        .glass-table { width: 100%; border-collapse: collapse; margin-top: 10px; }
+        .glass-table th { text-align: left; padding: 16px; border-bottom: 2px solid var(--glass-border); color: var(--primary); }
+        .glass-table td { padding: 16px; border-bottom: 1px solid var(--glass-border); color: var(--text-muted); }
+        .year-badge { background: rgba(250, 204, 21, 0.1); color: var(--accent); padding: 4px 8px; border-radius: 4px; font-size: 0.75rem; border: 1px solid rgba(250, 204, 21, 0.2); }
+    </style>
+</head>
+<body>
+
+<header>
+    <div class="brand"><h1>IJMR</h1><p>Research Archives</p></div>
+</header>
+
+<nav>
+    <a href="index.html">Home</a>
+    <a href="submit.html">Submit</a>
+    <a href="archive.html" class="active">Archives</a>
+</nav>
+
+<div class="section reveal">
+    <div class="glass-card">
+        <h2>Published Articles</h2>
+        <div style="overflow-x: auto;">
+            <table class="glass-table">
+                <thead>
+                    <tr><th>Year</th><th>Title</th><th>Author</th><th>Domain</th></tr>
+                </thead>
+                <tbody id="data">
+                    <tr>
+                        <td><span class="year-badge">2024</span></td>
+                        <td>AI in Healthcare</td>
+                        <td>Dr. Smith</td>
+                        <td>Medical</td>
+                    </tr>
+                    <tr>
+                        <td><span class="year-badge">2023</span></td>
+                        <td>Sustainable Concrete</td>
+                        <td>R. Johnson</td>
+                        <td>Engineering</td>
+                    </tr>
+                </tbody>
+            </table>
+        </div>
+    </div>
+</div>
+
+<script src="js/app.js"></script>
+</body>
+</html>
