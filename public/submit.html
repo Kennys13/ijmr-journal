@@ -1,52 +1,91 @@
-<!DOCTYPE html>
-<html lang="en">
-<head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Submit | IJMR</title>
-    <link rel="stylesheet" href="css/style.css">
-    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
-</head>
-<body>
-
-<header>
-    <div class="brand"><h1>IJMR</h1><p>Submission Portal</p></div>
-</header>
-
-<nav>
-    <a href="index.html">Home</a>
-    <a href="submit.html" class="active">Submit</a>
-    <a href="profile.html">Profile</a>
-</nav>
-
-<div class="section reveal">
-    <div class="glass-card form-container">
-        <h2 class="text-center" style="color: var(--primary);">Submit Manuscript</h2>
-        
-        <form onsubmit="event.preventDefault(); alert('Submission functionality requires backend integration.');">
-            <label>Author Full Name</label>
-            <input type="text" required>
-
-            <label>Domain</label>
-            <select required>
-                <option value="cs">Computer Science</option>
-                <option value="med">Medical</option>
-                <option value="eng">Engineering</option>
-            </select>
-
-            <label>Paper Title</label>
-            <input type="text" required>
-
-            <label>Abstract</label>
-            <textarea rows="5" required></textarea>
-
-            <label>Upload PDF</label>
-            <input type="file" required>
-
-            <button type="submit" class="btn btn-primary" style="width: 100%;">Submit Paper</button>
-        </form>
-    </div>
-</div>
 <script src="js/app.js"></script>
+
+<script type="module">
+    import { createClient } from 'https://cdn.jsdelivr.net/npm/@supabase/supabase-js/+esm';
+    
+    // --- YOUR KEYS ---
+    const SUPABASE_URL = 'https://xspbtzxgawwynybzfznv.supabase.co';
+    const SUPABASE_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InhzcGJ0enhnYXd3eW55Ynpmem52Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3NjUxNzA0MzcsImV4cCI6MjA4MDc0NjQzN30.0Htpq1U2B8EhpgeyEwRr6FByEEUF58h_PTo7twYQN7k';
+    
+    const supabase = createClient(SUPABASE_URL, SUPABASE_KEY);
+
+    // File Selection Logic
+    document.getElementById('file').addEventListener('change', function(){
+        document.getElementById('filename').innerText = this.files[0] ? this.files[0].name : '';
+    });
+
+    const form = document.getElementById('submitForm');
+    
+    form.addEventListener('submit', async (e) => {
+        e.preventDefault();
+
+        // 1. Check Login
+        const { data: { user } } = await supabase.auth.getUser();
+        if (!user) {
+            alert("Please login first.");
+            window.location.href = "login.html";
+            return;
+        }
+
+        const btn = document.getElementById('submitBtn');
+        const msg = document.getElementById('statusMsg');
+        const file = document.getElementById('file').files[0];
+
+        if (!file) return alert("Please select a file");
+
+        // UI Loading
+        btn.innerHTML = '<i class="fas fa-circle-notch fa-spin"></i> Uploading...';
+        btn.disabled = true;
+        msg.style.display = 'none';
+
+        try {
+            // 2. Upload File to 'submissions' bucket
+            // Ensure you created a bucket named 'submissions' in Supabase Storage
+            const fileName = `${user.id}/${Date.now()}_${file.name}`;
+            const { data: fileData, error: uploadError } = await supabase.storage
+                .from('submissions')
+                .upload(fileName, file);
+
+            if (uploadError) throw uploadError;
+
+            // 3. Get Public URL
+            const { data: { publicUrl } } = supabase.storage
+                .from('submissions')
+                .getPublicUrl(fileName);
+
+            // 4. Insert Record into 'submissions' table
+            const { error: dbError } = await supabase
+                .from('submissions')
+                .insert([{
+                    user_id: user.id,
+                    author_name: document.getElementById('authorName').value,
+                    email: document.getElementById('authorEmail').value,
+                    domain: document.getElementById('paperDomain').value,
+                    title: document.getElementById('paperTitle').value,
+                    abstract: document.getElementById('paperAbstract').value,
+                    file_url: publicUrl
+                }]);
+
+            if (dbError) throw dbError;
+
+            // Success
+            btn.innerHTML = '<i class="fas fa-check"></i> Submitted!';
+            btn.style.background = '#10b981';
+            msg.style.display = 'block';
+            msg.style.color = '#10b981';
+            msg.innerHTML = "Success! Manuscript uploaded.";
+            
+            setTimeout(() => window.location.href = 'index.html', 2000);
+
+        } catch (error) {
+            console.error("Error:", error);
+            msg.style.display = 'block';
+            msg.style.color = '#ff4444';
+            msg.innerText = error.message;
+            btn.innerHTML = 'Try Again';
+            btn.disabled = false;
+        }
+    });
+</script>
 </body>
 </html>
