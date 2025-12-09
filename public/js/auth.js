@@ -1,6 +1,6 @@
 /**
- * IJMR SUPABASE AUTHENTICATION & PROFILE MANAGER
- * Configuration for Project: xspbtzxgawwynybzfznv
+ * IJMR AUTHENTICATION & PROFILE MANAGER (v2.0)
+ * Handles detailed profiles, role-based access, and secure routing.
  */
 
 import { createClient } from 'https://cdn.jsdelivr.net/npm/@supabase/supabase-js/+esm';
@@ -16,10 +16,12 @@ class AuthService {
         this.client = supabase;
         this.user = null;
         this.userProfile = null;
+        
+        // Initial UI State: Hide Profile, Show Login
+        this.updateUI(null); 
         this.monitorAuthState();
     }
 
-    // 1. Monitor & Protect Routes
     monitorAuthState() {
         this.client.auth.onAuthStateChange(async (event, session) => {
             const path = window.location.pathname;
@@ -28,7 +30,7 @@ class AuthService {
                 this.user = session.user;
                 await this.fetchUserProfile(this.user.id);
                 
-                // If on login page but logged in, go home
+                // Redirect from public auth pages if logged in
                 if (path.includes('login.html') || path.includes('register.html')) {
                     window.location.href = 'index.html';
                 }
@@ -36,105 +38,114 @@ class AuthService {
                 this.user = null;
                 this.userProfile = null;
 
-                // PROTECT PROFILE PAGE: Redirect if not logged in
-                if (path.includes('profile.html')) {
+                // Protect Private Routes
+                if (path.includes('profile.html') || path.includes('submit.html')) {
                     window.location.href = 'login.html';
                 }
             }
-            
-            // Update UI when DOM is ready
-            if (document.readyState === "loading") {
-                document.addEventListener("DOMContentLoaded", () => this.updateUI(this.user));
-            } else {
-                this.updateUI(this.user);
-            }
+            this.updateUI(this.user);
         });
     }
 
     async fetchUserProfile(userId) {
         try {
-            const { data, error } = await this.client
+            const { data } = await this.client
                 .from('users')
                 .select('*')
                 .eq('id', userId)
                 .single();
-            
             if (data) this.userProfile = data;
         } catch (err) {
-            console.error("Profile load error:", err);
+            console.error("Profile Error:", err);
         }
     }
 
-    // 2. Login Logic
+    // --- LOGIN ---
     async login(email, password, role) {
-        const { data, error } = await this.client.auth.signInWithPassword({
-            email: email,
-            password: password
-        });
-
+        const { data, error } = await this.client.auth.signInWithPassword({ email, password });
         if (error) throw error;
 
-        // Verify Role matches Database
+        // Role Verification
         const { data: profile } = await this.client
             .from('users')
             .select('role')
             .eq('id', data.user.id)
             .single();
 
+        // Allow fuzzy matching (e.g., "Author" matches "Author / Researcher")
         if (profile && role) {
             const dbRole = (profile.role || "").toLowerCase();
             const selectedRole = role.toLowerCase();
+            
             if (!selectedRole.includes(dbRole) && !dbRole.includes(selectedRole)) {
                 await this.logout();
-                throw new Error(`Access Denied. You are registered as a "${profile.role}".`);
+                throw new Error(`Role Mismatch: You are registered as '${profile.role}'.`);
             }
         }
         return data.user;
     }
 
-    // 3. Upload Avatar (Max 500KB)
-    async uploadAvatar(file) {
-        if (!this.user) throw new Error("Not logged in");
+    // --- COMPLEX REGISTRATION ---
+    async register(details) {
+        // 1. Create Auth User
+        const { data, error } = await this.client.auth.signUp({
+            email: details.email,
+            password: details.password,
+            options: { data: { full_name: details.full_name } }
+        });
+
+        if (error) throw error;
+        const user = data.user;
+        if (!user) throw new Error("Registration failed.");
+
+        // 2. Prepare Database Record (Remove password)
+        delete details.password;
+        details.id = user.id; // Link to Auth ID
         
-        // Size Validation (500KB = 500 * 1024 bytes)
-        if (file.size > 500 * 1024) {
-            throw new Error("File size exceeds 500KB limit.");
+        // Default Avatar
+        details.avatar_url = `https://ui-avatars.com/api/?name=${details.full_name}&background=00d2ff&color=fff`;
+
+        // 3. Insert into 'users' table
+        const { error: dbError } = await this.client
+            .from('users')
+            .insert([details]);
+
+        if (dbError) {
+            // Rollback auth if DB fails (advanced) or just warn
+            console.error("DB Error:", dbError);
+            throw new Error("Account created but profile save failed. Please contact support.");
         }
 
-        const fileExt = file.name.split('.').pop();
-        const fileName = `${this.user.id}-${Date.now()}.${fileExt}`;
-        const filePath = `${fileName}`;
-
-        // Upload to 'avatars' bucket
-        const { error: uploadError } = await this.client.storage
-            .from('avatars')
-            .upload(filePath, file, { upsert: true });
-
-        if (uploadError) throw uploadError;
-
-        // Get Public URL
-        const { data: { publicUrl } } = this.client.storage
-            .from('avatars')
-            .getPublicUrl(filePath);
-
-        return publicUrl;
+        return user;
     }
 
-    // 4. Update Profile Data
-    async updateProfileData(name, photoURL) {
-        if (!this.user) return;
-
-        // Update Database
+    // --- PROFILE UPDATE ---
+    async updateProfileData(userId, updates) {
         const { error } = await this.client
             .from('users')
-            .update({ full_name: name, avatar_url: photoURL })
-            .eq('id', this.user.id);
+            .update(updates)
+            .eq('id', userId);
+        
+        if (error) throw error;
+        
+        // Refresh local state
+        this.userProfile = { ...this.userProfile, ...updates };
+        this.updateUI(this.user);
+    }
+
+    // --- FILE UPLOAD ---
+    async uploadAvatar(file) {
+        if (file.size > 500 * 1024) throw new Error("File exceeds 500KB limit.");
+        
+        const fileName = `${this.user.id}-${Date.now()}`;
+        const { error } = await this.client.storage
+            .from('avatars')
+            .upload(fileName, file, { upsert: true });
 
         if (error) throw error;
 
-        // Update Local State & UI immediately
-        this.userProfile = { ...this.userProfile, full_name: name, avatar_url: photoURL };
-        this.updateUI(this.user);
+        const { data } = this.client.storage.from('avatars').getPublicUrl(fileName);
+        return data.publicUrl;
     }
 
     async logout() {
@@ -142,49 +153,49 @@ class AuthService {
         window.location.href = 'login.html';
     }
 
-    // 5. Navbar UI with Profile Dropdown
+    // --- UI MANAGEMENT ---
     updateUI(user) {
         const nav = document.querySelector('nav');
-        // Find existing login link logic
-        let loginLink = null;
-        if(nav) {
-            nav.querySelectorAll('a').forEach(link => {
-                if(link.textContent.includes('Login')) loginLink = link;
-            });
+        let loginBtn = document.getElementById('nav-login-btn');
+        let profileWidget = document.getElementById('user-profile-widget');
+
+        // Create elements if missing (Logic ensures they exist before toggling)
+        if (!loginBtn && nav) {
+            loginBtn = document.createElement('a');
+            loginBtn.id = 'nav-login-btn';
+            loginBtn.href = 'login.html';
+            loginBtn.textContent = 'Login';
+            loginBtn.style.cssText = "margin-left: auto; font-weight: 600; color: white;";
+            nav.appendChild(loginBtn);
         }
 
-        // Cleanup
-        const oldProfile = document.getElementById('user-profile-widget');
-        if (oldProfile) oldProfile.remove();
+        if (user) {
+            // LOGGED IN: Show Profile, Hide Login
+            if (loginBtn) loginBtn.style.display = 'none';
 
-        if (user && nav) {
-            if(loginLink) loginLink.style.display = 'none';
+            if (!profileWidget && nav) {
+                profileWidget = document.createElement('div');
+                profileWidget.id = 'user-profile-widget';
+                nav.appendChild(profileWidget);
+            }
 
-            // Data
             const name = this.userProfile?.full_name || user.email;
-            const photo = this.userProfile?.avatar_url || `https://ui-avatars.com/api/?name=${name}&background=00d2ff&color=fff`;
+            const photo = this.userProfile?.avatar_url || `https://ui-avatars.com/api/?name=${name}`;
 
-            // Create Profile Widget
-            const container = document.createElement('div');
-            container.id = 'user-profile-widget';
-            container.style.cssText = `display: flex; align-items: center; gap: 12px; cursor: pointer; margin-left: auto; position: relative;`;
-            
-            container.innerHTML = `
-                <div style="text-align:right; line-height:1.2; display: none; sm:display: block;">
+            profileWidget.style.cssText = `display: flex; align-items: center; gap: 10px; cursor: pointer; margin-left: auto;`;
+            profileWidget.innerHTML = `
+                <div style="text-align:right; line-height:1.2;">
                     <div style="color:white; font-size:0.9rem; font-weight:600;">${name}</div>
-                    <div style="color:#2dd4bf; font-size:0.75rem;">Online</div>
+                    <div style="color:#2dd4bf; font-size:0.75rem;">${this.userProfile?.role || 'Member'}</div>
                 </div>
-                <img src="${photo}" style="width:42px; height:42px; border-radius:50%; border:2px solid #2dd4bf; object-fit: cover;">
+                <img src="${photo}" style="width:40px; height:40px; border-radius:50%; border:2px solid #2dd4bf; object-fit: cover;">
             `;
+            profileWidget.onclick = () => window.location.href = 'profile.html';
 
-            // Click to go to Profile Settings
-            container.onclick = () => {
-                window.location.href = 'profile.html';
-            };
-
-            nav.appendChild(container);
         } else {
-            if(loginLink) loginLink.style.display = 'block';
+            // LOGGED OUT: Show Login, Remove Profile
+            if (loginBtn) loginBtn.style.display = 'block';
+            if (profileWidget) profileWidget.remove();
         }
     }
 }

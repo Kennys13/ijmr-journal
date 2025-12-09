@@ -3,76 +3,156 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Register | IJMR</title>
+    <title>Researcher Registration | IJMR</title>
     <link rel="stylesheet" href="css/style.css">
-    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <style>
+        .form-section { border-top: 1px solid rgba(255,255,255,0.1); padding-top: 20px; margin-top: 20px; }
+        .form-section h3 { color: var(--primary); font-size: 1.1rem; margin-bottom: 15px; }
+        .grid-2 { display: grid; grid-template-columns: 1fr 1fr; gap: 15px; }
+        @media(max-width: 600px) { .grid-2 { grid-template-columns: 1fr; } }
+        label { font-size: 0.85rem; color: var(--text-muted); margin-bottom: 5px; display: block; }
+        input, select, textarea { width: 100%; padding: 10px; background: rgba(0,0,0,0.3); border: 1px solid var(--glass-border); color: white; border-radius: 6px; }
+        .checkbox-group { display: flex; gap: 10px; align-items: start; margin-bottom: 10px; }
+        .checkbox-group input { width: auto; margin-top: 4px; }
+    </style>
 </head>
 <body>
 
 <header>
-    <div class="brand"><h1>IJMR</h1><p>Join Community</p></div>
+    <div class="brand"><h1>IJMR</h1><p>Academic Registration</p></div>
 </header>
 
 <nav>
-    <a href="index.html">Home</a>
-    <a href="login.html">Login</a>
+    <div style="display:flex; gap:15px;">
+        <a href="index.html">Home</a>
+        <a href="login.html">Login</a>
+    </div>
 </nav>
 
-<div class="section reveal" style="min-height: 70vh; display: flex; align-items: center; justify-content: center;">
-    <div class="glass-card" style="width: 100%; max-width: 450px; padding: 2.5rem;">
-        <h2 class="text-center">Create Account</h2>
-        
-        <form id="registerForm">
-            <label>Full Name</label>
-            <input id="regName" type="text" placeholder="John Doe" required>
+<div class="section reveal">
+    <div class="glass-card" style="max-width: 800px; margin: 0 auto; padding: 2rem;">
+        <h2 style="color:white; text-align:center;">New User Registration</h2>
+        <p style="text-align:center; color:#888; margin-bottom:30px;">Join the IJMR community as an Author or Reviewer.</p>
 
-            <label>Email</label>
-            <input id="regEmail" type="email" placeholder="name@example.com" required>
+        <form id="regForm">
+            <!-- 1. Personal Info -->
+            <div class="form-section">
+                <h3>1. Personal Information</h3>
+                <div class="grid-2">
+                    <div><label>Full Name *</label><input type="text" name="full_name" required></div>
+                    <div><label>Email Address *</label><input type="email" name="email" required></div>
+                    <div><label>Password *</label><input type="password" name="password" placeholder="Min 6 chars" required></div>
+                    <div><label>Mobile Number</label><input type="tel" name="mobile"></div>
+                </div>
+            </div>
 
-            <label>Password</label>
-            <input id="regPass" type="password" placeholder="Min 6 characters" required>
+            <!-- 2. Professional Info -->
+            <div class="form-section">
+                <h3>2. Professional Information</h3>
+                <div class="grid-2">
+                    <div><label>Affiliation / Institution *</label><input type="text" name="affiliation" required></div>
+                    <div><label>Department</label><input type="text" name="department"></div>
+                    <div><label>Designation</label>
+                        <select name="designation">
+                            <option>Student</option>
+                            <option>Research Scholar</option>
+                            <option>Assistant Professor</option>
+                            <option>Professor</option>
+                            <option>Industry Researcher</option>
+                        </select>
+                    </div>
+                    <div><label>Country *</label><input type="text" name="country" required></div>
+                </div>
+                <div style="margin-top:10px;"><label>Professional Address</label><input type="text" name="professional_address"></div>
+            </div>
 
-            <label>Role</label>
-            <select id="regRole">
-                <option value="Author">Author</option>
-                <option value="Reviewer">Reviewer</option>
-            </select>
+            <!-- 3. Researcher Profile -->
+            <div class="form-section">
+                <h3>3. Researcher Profile</h3>
+                <div class="grid-2">
+                    <div><label>Areas of Research *</label><input type="text" name="areas_of_research" required></div>
+                    <div><label>ORCID iD</label><input type="text" name="orcid" placeholder="0000-0000-0000-0000"></div>
+                    <div><label>Google Scholar Link</label><input type="url" name="google_scholar"></div>
+                    <div><label>Role in Journal *</label>
+                        <select name="role" id="roleSelect" onchange="toggleRoleFields()">
+                            <option value="Author">Author</option>
+                            <option value="Reviewer">Reviewer</option>
+                        </select>
+                    </div>
+                </div>
+            </div>
 
-            <button type="submit" id="regBtn" class="btn btn-primary" style="width: 100%; margin-top: 20px;">
-                Create Account
-            </button>
-            <p id="regMsg" style="text-align: center; margin-top: 15px; display: none;"></p>
+            <!-- 4. Additional Details -->
+            <div class="form-section" id="authorFields">
+                <h3>4. Author Details</h3>
+                <label>Short Biography</label><textarea name="bio" rows="3"></textarea>
+                <label>Keywords</label><input type="text" name="keywords" placeholder="AI, Machine Learning, Data Science">
+            </div>
+
+            <div class="form-section" id="reviewerFields" style="display:none;">
+                <h3>4. Reviewer Details</h3>
+                <label>Subject Expertise</label><input type="text" name="expertise">
+                <div class="checkbox-group">
+                    <input type="checkbox" name="conflict_interest">
+                    <label>I declare I have no conflict of interest with IJMR policies.</label>
+                </div>
+            </div>
+
+            <!-- 5. Compliance -->
+            <div class="form-section">
+                <h3>5. Terms & Compliance</h3>
+                <div class="checkbox-group">
+                    <input type="checkbox" required>
+                    <label>I agree to the Author Guidelines and Publication Ethics.</label>
+                </div>
+                <div class="checkbox-group">
+                    <input type="checkbox" required>
+                    <label>I consent to the Data Privacy Policy & Terms of Use.</label>
+                </div>
+            </div>
+
+            <button type="submit" id="submitBtn" class="btn btn-primary" style="width:100%; margin-top:20px;">Register Account</button>
+            <p id="msg" style="text-align:center; margin-top:15px; color:#ff4444;"></p>
         </form>
     </div>
 </div>
 
-<script src="js/app.js"></script>
 <script type="module">
     import Auth from './js/auth.js';
 
-    document.getElementById('registerForm').addEventListener('submit', async (e) => {
+    // Toggle fields based on role
+    window.toggleRoleFields = () => {
+        const role = document.getElementById('roleSelect').value;
+        document.getElementById('authorFields').style.display = role === 'Author' ? 'block' : 'none';
+        document.getElementById('reviewerFields').style.display = role === 'Reviewer' ? 'block' : 'none';
+    };
+
+    document.getElementById('regForm').addEventListener('submit', async (e) => {
         e.preventDefault();
-        const btn = document.getElementById('regBtn');
-        const msg = document.getElementById('regMsg');
+        const btn = document.getElementById('submitBtn');
+        const msg = document.getElementById('msg');
         
-        btn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Creating...';
+        btn.disabled = true;
+        btn.innerText = 'Processing...';
+        msg.innerText = '';
+
+        // Gather all form data into an object
+        const formData = new FormData(e.target);
+        const data = Object.fromEntries(formData.entries());
+
+        // Handle checkbox manually
+        data.conflict_interest = formData.get('conflict_interest') === 'on';
 
         try {
-            await Auth.register(
-                document.getElementById('regName').value,
-                document.getElementById('regEmail').value,
-                document.getElementById('regPass').value,
-                document.getElementById('regRole').value
-            );
-            msg.style.display = 'block';
-            msg.style.color = '#10b981';
-            msg.innerText = "Success! Redirecting...";
+            await Auth.register(data);
+            btn.style.background = '#10b981';
+            btn.innerText = 'Success! Redirecting...';
             setTimeout(() => window.location.href = 'index.html', 1500);
-        } catch (error) {
-            msg.style.display = 'block';
-            msg.style.color = '#ff4444';
-            msg.innerText = error.message;
-            btn.innerHTML = 'Create Account';
+        } catch (err) {
+            console.error(err);
+            msg.innerText = err.message;
+            btn.disabled = false;
+            btn.innerText = 'Register Account';
         }
     });
 </script>
